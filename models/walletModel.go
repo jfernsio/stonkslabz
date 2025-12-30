@@ -2,10 +2,12 @@ package models
 
 import "time"
 
-type WalletModel struct {
+type Wallet struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
-	UserId string    `json:"user_id"  gorm:"foreignkey:UserID"`
-	Balance     string    `json:"balance" gorm:"decimal";default= 100000"`
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	UserID    uint      `json:"user_id" gorm:"not null;index"`
+	Balance   uint64    `json:"balance" gorm:"not null;default:100000"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+
+	Transactions []Transaction `gorm:"foreignKey:WalletID"`
 }

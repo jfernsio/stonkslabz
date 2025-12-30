@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -13,8 +12,10 @@ import (
 )
 
 type DbInstance struct {
-	DB *gorm.DB
+	Db *gorm.DB
 }
+
+var Database DbInstance
 
 func ConnectToDB () {
 	err := godotenv.Load()
@@ -47,11 +48,11 @@ func ConnectToDB () {
 	log.Println("Running migrations")
 
 	//run migartions
-	if err := DbMigartions(db); err != nil {
+	if err := DbMigrations(db); err != nil {
 		log.Fatalln("FAiled to run migratations", err)
 	}
 
-	
+	Database = DbInstance{Db:db}
 }
 
 

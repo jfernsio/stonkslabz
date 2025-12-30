@@ -2,13 +2,23 @@ package models
 
 import "time"
 
-type TransactionModel struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	WalletID string    `json:"user_name" gorm:"text;uniqueIndex;not null"`
-	Symbol     string    `json:"email" gorm:"text;uniqueIndex;not null"`
-	Quantity  string    `json:"password"`
-	AvgBuyPrice uint64 
-	
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+type TransactionType string
+
+const (
+	Buy  TransactionType = "BUY"
+	Sell TransactionType = "SELL"
+)
+
+type Transaction struct {
+	ID            uint            `json:"id" gorm:"primaryKey"`
+	WalletID      uint            `json:"wallet_id" gorm:"not null;index"`
+	Symbol        string          `json:"symbol" gorm:"not null"`
+	Quantity      uint64          `json:"quantity" gorm:"not null"`
+	Type          TransactionType `json:"type" gorm:"type:varchar(10);not null"`
+	PricePerUnit  uint64          `json:"price_per_unit" gorm:"not null"`
+	TotalAmount   uint64          `json:"total_amount" gorm:"not null"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
+
+	Wallet Wallet `gorm:"foreignKey:WalletID"`
 }
