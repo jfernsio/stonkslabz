@@ -2,20 +2,23 @@ package handlers
 
 import (
 	"fmt"
-	"os"
+	"jfernsio/stonksbackend/config"
+
 	"time"
 
+	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v3/client"
 )
 
-var coinApi = os.Getenv("CoinGecko")
-// var fmpApi = os.Getenv("Fmp")
-// var   finhubApi := os.Getenv("FinHub")
 
-func GetMarketData() {
+func GetMarketData(c *fiber.Ctx) error {
+	//retrice config from context
+	cfg := c.Locals("config").(*config.Config)
 
+	//get apikey 
+	coinApi := cfg.CoinGecko
 	url := "https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=bitcoin,solana&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true"
-	fmt.Println("runnomg")
+	fmt.Println("running")
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -26,19 +29,19 @@ func GetMarketData() {
 		},
 	})
 
-	fmt.Println("stioed")
+	fmt.Println("stopped")
 	if err != nil {
-		panic(err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	fmt.Println()
 
-	fmt.Printf("Status: %d\n", resp.StatusCode())
-	fmt.Printf("Body: %s\n", string(resp.Body()))
-
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
 
-func GetTopGainers(fmpApi string) {
-	url := fmt.Sprintf("https://financialmodelingprep.com/stable/biggest-gainers?apikey=%s", fmpApi)
+func GetTopGainers(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	fmt.Println("cnfh",cfg)
+	fmpApi := cfg.FMP
+	url := fmt.Sprintf("https://financialmodelingprep.com/stable/biggest-gainers?apikey=%s",fmpApi)
 	fmt.Println("url",fmpApi)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
@@ -46,17 +49,17 @@ func GetTopGainers(fmpApi string) {
 	// Send a GET request
 	resp, err := cc.Get(url)
 
-	fmt.Println("stioed")
+	fmt.Println("stopped")
 	if err != nil {
-		panic(err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	fmt.Println()
 
-	fmt.Printf("Status: %d\n", resp.StatusCode())
-	fmt.Printf("Body: %s\n", string(resp.Body()))
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
 
-func GetTopLosers(fmpApi string) {
+func GetTopLosers(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	fmpApi := cfg.FMP
 	url := fmt.Sprintf("https://financialmodelingprep.com/stable/biggest-losers?apikey=%s", fmpApi)
 	fmt.Println("url",fmpApi)
 	cc := client.New()
@@ -65,17 +68,17 @@ func GetTopLosers(fmpApi string) {
 	// Send a GET request
 	resp, err := cc.Get(url)
 
-	fmt.Println("stioed")
+	fmt.Println("stopped")
 	if err != nil {
-		panic(err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	fmt.Println()
 
-	fmt.Printf("Status: %d\n", resp.StatusCode())
-	fmt.Printf("Body: %s\n", string(resp.Body()))
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
 
-func GetStockData(fmpApi string) {
+func GetStockData(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	fmpApi := cfg.FMP
 	url := fmt.Sprintf("https://financialmodelingprep.com/api/stable/quote/AAPL,MSFT,GOOGL,NVDA,TSLA?apikey=%s", fmpApi)
 	fmt.Println("url",fmpApi)
 	cc := client.New()
@@ -84,27 +87,53 @@ func GetStockData(fmpApi string) {
 	// Send a GET request
 	resp, err := cc.Get(url)
 
-	fmt.Println("stioed")
+	fmt.Println("stopped")
 	if err != nil {
-		panic(err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	fmt.Println()
 
-	fmt.Printf("Status: %d\n", resp.StatusCode())
-	fmt.Printf("Body: %s\n", string(resp.Body()))
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
 
-func GetIpoData() {
+func GetIpoData(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	fmpApi := cfg.FMP
+	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/ipo-calendar?apikey=%s", fmpApi)
+	cc := client.New()
+	cc.SetTimeout(10 * time.Second)
 
+	resp, err := cc.Get(url)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
 
-func GetInsiderData() {
-	
+func GetInsiderData(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	finhubApi := cfg.FinHub
+	url := "https://finnhub.io/api/v1/stock/insider-transactions?symbol=TSLA"
+	cc := client.New()
+	cc.SetTimeout(10 * time.Second)
+
+	resp, err := cc.Get(url, client.Config{
+		Header: map[string]string{
+			"X-Finnhub-Token": finhubApi,
+		},
+	})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+	}
+
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
 
-func GetInsiderSentiment(finhubApi string) {
-	url := "https://finnhub.io/api/v1/stock/insider-sentiment?symbol=TSLA,NVDA"
-	fmt.Println("runnomg")
+func GetInsiderSentiment(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	finhubApi := cfg.FinHub
+	url := "https://finnhub.io/api/v1/stock/insider-sentiment?symbol=TSLA"
+	fmt.Println("running")
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -115,12 +144,10 @@ func GetInsiderSentiment(finhubApi string) {
 		},
 	})
 
-	fmt.Println("stioed")
+	fmt.Println("stopped")
 	if err != nil {
-		panic(err)
+		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
-	fmt.Println()
 
-	fmt.Printf("Status: %d\n", resp.StatusCode())
-	fmt.Printf("Body: %s\n", string(resp.Body()))
+	return c.JSON(fiber.Map{"data": string(resp.Body())})
 }
