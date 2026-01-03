@@ -45,6 +45,9 @@ func main() {
 	v1.Get("/get-insider-sentiment", handlers.GetInsiderSentiment)
 	v1.Get("/get-insider-data", handlers.GetInsiderData)
 
+	//trade routes to get ticker candles
+	v1.Get("/get-ticker/:symbol", handlers.GetTickerData)
+
 	log.Fatal(app.Listen(":8000"))
 
 }
