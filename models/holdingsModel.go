@@ -16,7 +16,6 @@ type Holding struct {
 	Quantity    uint64      `json:"quantity" gorm:"not null"`
 	AvgBuyPrice uint64      `json:"avg_buy_price" gorm:"not null"`
 	Type        HoldingType `json:"type" gorm:"type:varchar(10);not null"`
-	RealizedPnL uint64      `json:"realized_pnl"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
