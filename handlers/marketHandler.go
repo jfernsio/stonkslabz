@@ -10,12 +10,11 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 )
 
-
 func GetMarketData(c *fiber.Ctx) error {
 	//retrice config from context
 	cfg := c.Locals("config").(*config.Config)
 
-	//get apikey 
+	//get apikey
 	coinApi := cfg.CoinGecko
 	url := "https://api.coingecko.com/api/v3/simple/price?vs_currencies=usd&ids=bitcoin,solana&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true"
 	fmt.Println("running")
@@ -39,10 +38,10 @@ func GetMarketData(c *fiber.Ctx) error {
 
 func GetTopGainers(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
-	fmt.Println("cnfh",cfg)
+	fmt.Println("cnfh", cfg)
 	fmpApi := cfg.FMP
-	url := fmt.Sprintf("https://financialmodelingprep.com/stable/biggest-gainers?apikey=%s",fmpApi)
-	fmt.Println("url",fmpApi)
+	url := fmt.Sprintf("https://financialmodelingprep.com/stable/biggest-gainers?apikey=%s", fmpApi)
+	fmt.Println("url", fmpApi)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -61,7 +60,7 @@ func GetTopLosers(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	fmpApi := cfg.FMP
 	url := fmt.Sprintf("https://financialmodelingprep.com/stable/biggest-losers?apikey=%s", fmpApi)
-	fmt.Println("url",fmpApi)
+	fmt.Println("url", fmpApi)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -80,7 +79,7 @@ func GetStockData(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	fmpApi := cfg.FMP
 	url := fmt.Sprintf("https://financialmodelingprep.com/api/stable/quote/AAPL,MSFT,GOOGL,NVDA,TSLA?apikey=%s", fmpApi)
-	fmt.Println("url",fmpApi)
+	fmt.Println("url", fmpApi)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -98,7 +97,11 @@ func GetStockData(c *fiber.Ctx) error {
 func GetIpoData(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	fmpApi := cfg.FMP
+	symbol := c.Query("symbol")
 	url := fmt.Sprintf("https://financialmodelingprep.com/api/v3/ipo-calendar?apikey=%s", fmpApi)
+	if symbol != "" {
+		// If symbol provided, assume it's for filtering, but API doesn't support, so just fetch all
+	}
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -113,7 +116,8 @@ func GetIpoData(c *fiber.Ctx) error {
 func GetInsiderData(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	finhubApi := cfg.FinHub
-	url := "https://finnhub.io/api/v1/stock/insider-transactions?symbol=TSLA"
+	symbol := c.Query("symbol", "TSLA") // Default to TSLA if not provided
+	url := fmt.Sprintf("https://finnhub.io/api/v1/stock/insider-transactions?symbol=%s", symbol)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -132,7 +136,8 @@ func GetInsiderData(c *fiber.Ctx) error {
 func GetInsiderSentiment(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	finhubApi := cfg.FinHub
-	url := "https://finnhub.io/api/v1/stock/insider-sentiment?symbol=TSLA"
+	symbol := c.Query("symbol", "TSLA") // Default to TSLA if not provided
+	url := fmt.Sprintf("https://finnhub.io/api/v1/stock/insider-sentiment?symbol=%s", symbol)
 	fmt.Println("running")
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
