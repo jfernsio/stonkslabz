@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"fmt"
 	"jfernsio/stonksbackend/config"
 	"log"
@@ -13,6 +14,8 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v3/client"
 )
+
+var Stocksymbols = []string{"APPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "JPM", "IBM"}
 
 func GetCryptoData(c *fiber.Ctx) error {
 	// retrieve config from context
@@ -180,10 +183,10 @@ func GetTopLosers(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"data": string(body)})
 }
 
-func GetStockData(c *fiber.Ctx) error {
+func GetStockData(c *fiber.Ctx, symbol string) ([]byte, error) {
 	cfg := c.Locals("config").(*config.Config)
 	alpha := cfg.Alpha
-	url := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=IBM&apikey=%s", alpha)
+	url := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s", symbol, alpha)
 	fmt.Println("url", alpha)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
@@ -193,10 +196,9 @@ func GetStockData(c *fiber.Ctx) error {
 
 	fmt.Println("stopped")
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
+		return nil, err
 	}
-
-	return c.JSON(fiber.Map{"data": string(resp.Body())})
+	return resp.Body(), err
 }
 
 func GetIpoData(c *fiber.Ctx) error {
@@ -257,4 +259,64 @@ func GetInsiderSentiment(c *fiber.Ctx) error {
 	}
 
 	return c.JSON(fiber.Map{"data": string(resp.Body())})
+}
+
+func Market(c *fiber.Ctx) error {
+	cacheKey := "stock_market_data"
+	ctx := c.Context()
+
+	// 1. Try Redis first
+	cached, err := config.Redis.Client.Get(ctx, cacheKey).Bytes()
+	if err == nil && len(cached) > 0 {
+		// Cache hit
+		log.Println("cache hit")
+		data, err := utils.GzipDecompress(cached)
+		if err != nil {
+			log.Println("Decompression error:", err)
+			// Continue to fetch fresh data
+		} else {
+			return c.JSON(fiber.Map{cacheKey: string(data)})
+		}
+	}
+
+	//check symbols
+	if len(Stocksymbols) == 0 {
+		return c.Status(500).JSON(fiber.Map{"error": "no symbols"})
+	}
+	// 2. Fetch data for all symbols and collect into a map
+	marketData := make(map[string]interface{})
+	for _, sym := range Stocksymbols {
+		price, err := GetStockData(c, sym)
+		if err != nil {
+			log.Printf("Error fetching data for %s: %v", sym, err)
+			continue // Skip failed symbols
+		}
+		//sleep for 2 sec to avoid rate limit
+		time.Sleep(2 * time.Second)
+		// Assuming price is JSON bytes; store as string for consistency
+		marketData[sym] = string(price)
+	}
+
+	// 3. Convert collected data to JSON string
+	dataBytes, err := json.Marshal(marketData)
+	if err != nil {
+		log.Println("JSON marshal error:", err)
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to process market data"})
+	}
+
+	// 4. Compress and cache the full data
+	compressed, err := utils.GzipCompress(dataBytes)
+	if err != nil {
+		log.Println("Compression error:", err)
+		// Still return data even if caching fails
+	} else {
+		if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 5*time.Minute).Err(); err != nil {
+			log.Println("Redis set error:", err)
+		} else {
+			log.Println("Data cached in Redis")
+		}
+	}
+
+	// 5. Return the data
+	return c.JSON(fiber.Map{cacheKey: string(dataBytes)})
 }
