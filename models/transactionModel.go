@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type TransactionType string
 
@@ -15,9 +19,9 @@ type Transaction struct {
 	Symbol       string          `json:"symbol" gorm:"not null"`
 	Quantity     uint64          `json:"quantity" gorm:"not null"`
 	Type         TransactionType `json:"type" gorm:"type:varchar(10);not null"`
-	PricePerUnit uint64          `json:"price_per_unit" gorm:"not null"`
-	TotalAmount  uint64          `json:"total_amount" gorm:"not null"`
-	RealizedPnL  uint64          `json:"realized_pnl" gorm:"default:0"`
+	PricePerUnit decimal.Decimal `json:"price_per_unit" gorm:"not null;type:decimal(20,8)"`
+	TotalAmount  decimal.Decimal `json:"total_amount" gorm:"not null;type:decimal(20,8)"`
+	RealizedPnL  int64           `json:"realized_pnl" gorm:"default:0"`
 	CreatedAt    time.Time       `json:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at"`
 

@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type HoldingType string
 
@@ -10,12 +14,12 @@ const (
 )
 
 type Holding struct {
-	ID          uint        `json:"id" gorm:"primaryKey"`
-	WalletID    uint        `json:"wallet_id" gorm:"not null;uniqueIndex:idx_wallet_symbol"`
-	Symbol      string      `json:"symbol" gorm:"not null;uniqueIndex:idx_wallet_symbol"`
-	Quantity    uint64      `json:"quantity" gorm:"not null"`
-	AvgBuyPrice uint64      `json:"avg_buy_price" gorm:"not null"`
-	Type        HoldingType `json:"type" gorm:"type:varchar(10);not null"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+	ID          uint            `json:"id" gorm:"primaryKey"`
+	WalletID    uint            `json:"wallet_id" gorm:"not null;uniqueIndex:idx_wallet_symbol"`
+	Symbol      string          `json:"symbol" gorm:"not null;uniqueIndex:idx_wallet_symbol"`
+	Quantity    uint64          `json:"quantity" gorm:"not null"`
+	AvgBuyPrice decimal.Decimal `json:"avg_buy_price" gorm:"not null; type:decimal(20,8)" `
+	Type        HoldingType     `json:"type" gorm:"type:varchar(10);not null"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 }
