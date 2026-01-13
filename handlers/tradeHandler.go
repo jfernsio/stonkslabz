@@ -7,12 +7,12 @@ import (
 	"jfernsio/stonksbackend/database"
 	"jfernsio/stonksbackend/models"
 	"log"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v3/client"
+	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -28,7 +28,7 @@ type UserReq struct {
 	ExpectedPrice string `json:"expectedPrice"`
 }
 
-func MarketPrice(symbol string) (uint64, error) {
+func MarketPrice(symbol string) (decimal.Decimal, error) {
 
 	url := "https://api.binance.com/api/v3/ticker/price?symbol=" + symbol + "USDT"
 	cc := client.New()
@@ -37,23 +37,21 @@ func MarketPrice(symbol string) (uint64, error) {
 	//send request
 	resp, err := cc.Get(url)
 	if err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 
 	var priceData BinancePriceResp
 	if err := json.NewDecoder(bytes.NewReader(resp.Body())).Decode(&priceData); err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
 	log.Println(priceData)
-	// Parse as float first
-	priceFloat, err := strconv.ParseFloat(priceData.Price, 64)
+	// convert price to decimal
+	price, err := decimal.NewFromString(priceData.Price)
 	if err != nil {
-		return 0, err
+		return decimal.Zero, err
 	}
-	// Convert to satoshis per satoshi (price in USDT per BTC, since 1 satoshi_USDT = 1e-8 USDT, 1 satoshi_BTC = 1e-8 BTC)
-	price := uint64(priceFloat)
 
-	log.Println("convprice", price)
+	log.Println("convprice in decimal", symbol, price)
 	return price, nil
 
 }
@@ -62,14 +60,11 @@ func BuyHandler(c *fiber.Ctx) error {
 	symbol := strings.ToUpper(c.Params("symbol"))
 	log.Println("symbol", symbol)
 
-	// Parse quantity as float first, then convert to satoshis
-	qtyFloat, err := strconv.ParseFloat(c.Params("quantity"), 64)
-	if err != nil || qtyFloat <= 0 {
+	quantityStr := c.Params("quantity")
+	qty, err := decimal.NewFromString(quantityStr)
+	if err != nil || qty.Sign() <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid quantity"})
 	}
-
-	// Convert quantity to satoshis (e.g., 0.5 BTC = 50000000 satoshis) i.e 1^8
-	qty := uint64(qtyFloat * 1e8)
 
 	userID, ok := c.Locals("user_id").(uint)
 	if !ok {
@@ -82,9 +77,9 @@ func BuyHandler(c *fiber.Ctx) error {
 	}
 
 	// Calculate total cost
-	// qty in satoshi_BTC, price in satoshi_USDT per satoshi_BTC
-	totalCost := qty * price
-
+	//multiply decimal by decimal for total cost wih proper precsion
+	totalCost := qty.Mul(price)
+	log.Println("total cost", totalCost)
 	tx := database.Database.Db.Begin()
 	defer func() {
 		if r := recover(); r != nil {
@@ -101,17 +96,17 @@ func BuyHandler(c *fiber.Ctx) error {
 		tx.Rollback()
 		return c.Status(404).JSON(fiber.Map{"error": "Wallet not found"})
 	}
-	// wallet.Balance := wallet.Balance * 1e8
+
 	log.Println("Balamce", wallet.Balance)
-	if wallet.Balance < totalCost {
+	balance := wallet.Balance
+	if balance.Cmp(totalCost) < 0 {
 		tx.Rollback()
 		return c.Status(422).JSON(fiber.Map{"error": "Insufficient balance"})
 	}
 
-	wallet.Balance -= totalCost
-	// log.Println("New bal",wallet.Balance)
-	// wallet.Balance = uint64(wallet.Balance / 1e8)
+	wallet.Balance = balance.Sub(totalCost)
 	log.Println("Saved bal", wallet.Balance)
+
 	if err := tx.Save(&wallet).Error; err != nil {
 		tx.Rollback()
 		return c.SendStatus(500)
@@ -136,13 +131,14 @@ func BuyHandler(c *fiber.Ctx) error {
 		}
 	} else if err == nil {
 		//adds to existing holding
-		current := holding.Quantity * holding.AvgBuyPrice
-		added := qty * price
-		total_value := current + added
-		totalQty := holding.Quantity + qty
+		current := holding.Quantity.Mul(holding.AvgBuyPrice)
+		added := qty.Mul(price)
 
-		holding.AvgBuyPrice = total_value / totalQty
-		holding.Quantity = totalQty
+		newTotalValue := current.Add(added)
+		newTotalQty := holding.Quantity.Add(qty)
+
+		holding.AvgBuyPrice = newTotalValue.Div(newTotalQty)
+		holding.Quantity = newTotalQty
 
 		if err := tx.Save(&holding).Error; err != nil {
 			tx.Rollback()
@@ -173,9 +169,9 @@ func BuyHandler(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"status":    "success",
-		"balance":   float64(wallet.Balance) / 1e8, // Convert back for display
-		"avg_price": float64(holding.AvgBuyPrice),
-		"quantity":  float64(holding.Quantity) / 1e8,
+		"balance":   wallet.Balance.StringFixed(8), // Convert back for display
+		"avg_price": holding.AvgBuyPrice.StringFixed(8),
+		"quantity":  holding.Quantity.StringFixed(8),
 	})
 }
 
@@ -183,14 +179,12 @@ func SellHandler(c *fiber.Ctx) error {
 	symbol := strings.ToUpper(c.Params("symbol"))
 	log.Println("symbol", symbol)
 
-	// Parse quantity as float first, then convert to satoshis
-	qtyFloat, err := strconv.ParseFloat(c.Params("quantity"), 64)
-	if err != nil || qtyFloat <= 0 {
+	quantityStr := c.Params("quantity")
+	qty, err := decimal.NewFromString(quantityStr)
+
+	if err != nil || qty.Sign() <= 0 {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid quantity"})
 	}
-
-	// Convert quantity to satoshis (e.g., 0.5 BTC = 50000000 satoshis) i.e 1^8
-	qty := uint64(qtyFloat * 1e8)
 
 	userID, ok := c.Locals("user_id").(uint)
 	if !ok {
@@ -203,8 +197,7 @@ func SellHandler(c *fiber.Ctx) error {
 	}
 
 	// Calculate total sale
-	// qty in satoshi_BTC, price in satoshi_USDT per satoshi_BTC
-	totalSale := qty * price
+	totalSale := qty.Mul(price)
 
 	tx := database.Database.Db.Begin()
 	defer func() {
@@ -237,18 +230,18 @@ func SellHandler(c *fiber.Ctx) error {
 	}
 
 	//check if user has enuf quantity to sell
-	if holding.Quantity < qty {
+	if holding.Quantity.Cmp(qty) < 0 {
 		tx.Rollback()
 		return c.Status(422).JSON(fiber.Map{"error": "Insufficient asset quantity"})
 	}
 
 	//calculate pnl
-	pnl := int64(((int64(price) - int64(holding.AvgBuyPrice)) * int64(qty)) / 100000000)
+	pnl := qty.Mul(price.Sub(holding.AvgBuyPrice))
 
 	//update holding quantity
-	holding.Quantity -= qty
+	holding.Quantity = holding.Quantity.Sub(qty)
 	//if quantity is zeeo delete holding
-	if holding.Quantity == 0 {
+	if holding.Quantity.IsZero() {
 		if err := tx.Delete(&holding).Error; err != nil {
 			tx.Rollback()
 			return c.SendStatus(500)
@@ -261,7 +254,7 @@ func SellHandler(c *fiber.Ctx) error {
 	}
 
 	//update wallet balance
-	wallet.Balance += totalSale
+	wallet.Balance = wallet.Balance.Add(totalSale)
 	if err := tx.Save(&wallet).Error; err != nil {
 		tx.Rollback()
 		return c.Status(500).JSON(fiber.Map{"error": "Couldnt update wallet balance"})
@@ -287,9 +280,9 @@ func SellHandler(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{
 		"status":             "success",
-		"new_balance":        float64(wallet.Balance) / 1e8, // Convert back for display
-		"pnl":                float64(pnl),
-		"sold_at":            float64(price),
-		"remaining_quantity": float64(holding.Quantity) / 1e8,
+		"new_balance":        wallet.Balance.StringFixed(8), // Convert back for display
+		"pnl":                pnl.StringFixed(2),
+		"sold_at":            price.StringFixed(8),
+		"remaining_quantity": holding.Quantity.StringFixed(8),
 	})
 }
