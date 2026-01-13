@@ -107,13 +107,18 @@ func BuyStockHandler(c *fiber.Ctx) error {
         tx.Rollback()
         return c.Status(404).JSON(fiber.Map{"error": "Wallet not found"})
     }
-
-    if wallet.Balance < uint64(totalCostSats) {
+    var Balance decimal.Decimal = decimal.NewFromUint64(wallet.Balance).Mul(decimal.NewFromInt(1e8))
+    log.Println("balance",Balance)
+    log.Println("uint64totdalcost",uint64(totalCostSats))
+    log.Println("normal balcne",wallet.Balance)
+     satbal := (wallet.Balance * 1e8)
+    log.Println("satoshibal",satbal)
+    if (wallet.Balance *1e8) < uint64(totalCostSats) {
         tx.Rollback()
         return c.Status(422).JSON(fiber.Map{"error": "Insufficient balance"})
     }
 
-    wallet.Balance -= uint64(totalCostSats)
+    satbal -= uint64(totalCostSats)
     if err := tx.Save(&wallet).Error; err != nil {
         tx.Rollback()
         return c.SendStatus(500)
@@ -184,6 +189,3 @@ func BuyStockHandler(c *fiber.Ctx) error {
         "quantity":  decimal.NewFromInt(int64(holding.Quantity)).Div(decimal.NewFromInt(1e8)),
     })
 }
-
-	
-
