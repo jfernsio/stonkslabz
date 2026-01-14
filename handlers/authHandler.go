@@ -39,13 +39,21 @@ func UserSignup(c *fiber.Ctx) error {
 		Password: hashedPassword,
 	}
 
+	//create user returning id on success to use to create wallet
+
 	if err := database.Database.Db.Create(&user).Error; err != nil {
 		if strings.Contains(err.Error(), "duplicate") {
 			return fiber.NewError(fiber.StatusConflict, "Email or username already exists")
 		}
 		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create user")
 	}
+	wallet := models.Wallet{
+		UserID: user.ID,
+	}
 
+	if err := database.Database.Db.Create(&wallet).Error; err != nil {
+		return fiber.NewError(fiber.StatusInternalServerError, "Failed to create wallet")
+	}
 	return c.Status(fiber.StatusCreated).JSON(fiber.Map{
 		"status":  "success",
 		"message": "User registered successfully",

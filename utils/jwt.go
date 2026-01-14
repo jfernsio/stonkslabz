@@ -45,3 +45,5 @@ func VerifyToken(tokenStr string) (*jwt.MapClaims, error) {
 	}
 	return nil, err
 }
+
+//todo to avoid float create custom struct w userid uint n username sting
