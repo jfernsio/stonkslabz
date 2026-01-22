@@ -1,11 +1,60 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { TrendingUp, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/v1/signin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include", // Important for cookies
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Logged in successfully!",
+        });
+        navigate("/dashboard");
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Login failed",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -30,7 +79,7 @@ export default function Login() {
 
         {/* Form */}
         <div className="terminal-card p-6">
-          <form className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Email</label>
               <div className="relative">
@@ -39,6 +88,9 @@ export default function Login() {
                   type="email"
                   placeholder="trader@stonkslab.com"
                   className="pl-9 bg-muted border-border font-mono"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
             </div>
@@ -51,6 +103,9 @@ export default function Login() {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="pl-9 pr-10 bg-muted border-border font-mono"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
                 />
                 <button
                   type="button"
@@ -72,8 +127,8 @@ export default function Login() {
               </a>
             </div>
 
-            <Button className="w-full bg-primary text-primary-foreground">
-              Sign In
+            <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={isLoading}>
+              {isLoading ? "Signing In..." : "Sign In"}
             </Button>
           </form>
 
@@ -95,3 +150,4 @@ export default function Login() {
     </div>
   );
 }
+

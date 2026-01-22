@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Wallet, TrendingUp, PieChart, Activity } from "lucide-react";
 import { PortfolioCard } from "@/components/dashboard/PortfolioCard";
 import { MarketTicker } from "@/components/dashboard/MarketTicker";
@@ -5,6 +7,7 @@ import { GainersLosersTable } from "@/components/dashboard/GainersLosersTable";
 import { AllocationChart } from "@/components/dashboard/AllocationChart";
 import { AIInsightCard } from "@/components/dashboard/AIInsightCard";
 import { WatchlistPreview } from "@/components/dashboard/WatchlistPreview";
+import { useToast } from "@/hooks/use-toast";
 
 const marketTickers = [
   { symbol: "S&P 500", name: "Index", price: "$5,603.24", change: "+78.32", changePercent: "+1.4%", positive: true },
@@ -13,21 +16,87 @@ const marketTickers = [
   { symbol: "ETH", name: "Ethereum", price: "$3,456.78", change: "+72.45", changePercent: "+2.1%", positive: true },
 ];
 
-const topGainers = [
-  { symbol: "NVDA", name: "NVIDIA Corporation", price: "$181.46", change: "+8.21%", positive: true },
-  { symbol: "AMD", name: "Advanced Micro Devices", price: "$156.78", change: "+5.43%", positive: true },
-  { symbol: "SMCI", name: "Super Micro Computer", price: "$890.12", change: "+4.87%", positive: true },
-  { symbol: "META", name: "Meta Platforms", price: "$567.89", change: "+3.21%", positive: true },
-];
-
-const topLosers = [
-  { symbol: "INTC", name: "Intel Corporation", price: "$34.56", change: "-4.32%", positive: false },
-  { symbol: "BA", name: "Boeing Company", price: "$178.90", change: "-3.21%", positive: false },
-  { symbol: "DIS", name: "Walt Disney Company", price: "$98.76", change: "-2.87%", positive: false },
-  { symbol: "PYPL", name: "PayPal Holdings", price: "$67.54", change: "-2.15%", positive: false },
-];
-
 export default function Dashboard() {
+  const [portfolio, setPortfolio] = useState(null);
+  const [gainers, setGainers] = useState([]);
+  const [losers, setLosers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    setLoading(true);
+    try {
+      // Fetch portfolio
+      const portfolioRes = await fetch("http://localhost:8000/api/v1/portfolio", {
+        credentials: "include",
+      });
+      if (portfolioRes.status === 401) {
+        navigate("/login");
+        return;
+      }
+      if (portfolioRes.ok) {
+        const portfolioData = await portfolioRes.json();
+        setPortfolio(portfolioData.data);
+      } else {
+        throw new Error("Failed to fetch portfolio");
+      }
+
+      // Fetch gainers
+      const gainersRes = await fetch("http://localhost:8000/api/v1/get-gainers");
+      if (gainersRes.ok) {
+        const gainersData = await gainersRes.json();
+        const parsedGainers = JSON.parse(gainersData.data || "[]");
+        setGainers(parsedGainers.slice(0, 10).map((item: any) => ({
+          symbol: item.symbol,
+          name: item.name || item.symbol,
+          price: `$${parseFloat(item.price).toFixed(2)}`,
+          change: `${item.changesPercentage > 0 ? '+' : ''}${item.changesPercentage.toFixed(2)}%`,
+          positive: item.changesPercentage > 0,
+        })));
+      }
+
+      // Fetch losers
+      const losersRes = await fetch("http://localhost:8000/api/v1/get-losers");
+      if (losersRes.ok) {
+        const losersData = await losersRes.json();
+        const parsedLosers = JSON.parse(losersData.data || "[]");
+        setLosers(parsedLosers.slice(0, 10).map((item: any) => ({
+          symbol: item.symbol,
+          name: item.name || item.symbol,
+          price: `$${parseFloat(item.price).toFixed(2)}`,
+          change: `${item.changesPercentage.toFixed(2)}%`,
+          positive: false,
+        })));
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Header */}
@@ -46,32 +115,32 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <PortfolioCard
           title="Total Balance"
-          value="$125,430.50"
-          change="+$2,340.50"
-          changePercent="+1.9%"
-          positive={true}
+          value={`$${portfolio?.total_balance || "0.00"}`}
+          change={`$${portfolio?.today_pnl || "0.00"}`}
+          changePercent={`${portfolio?.percentage_change || "0.00"}%`}
+          positive={(portfolio?.percentage_change || 0) >= 0}
           variant="primary"
           icon={<Wallet className="w-5 h-5 text-primary" />}
         />
         <PortfolioCard
           title="Today's P&L"
-          value="+$1,234.56"
-          change="+1.0%"
-          positive={true}
+          value={`$${portfolio?.today_pnl || "0.00"}`}
+          change={`${portfolio?.percentage_change || "0.00"}%`}
+          positive={(portfolio?.today_pnl || 0) >= 0}
           variant="success"
           icon={<TrendingUp className="w-5 h-5 text-success" />}
         />
         <PortfolioCard
           title="Total Return"
-          value="+25.43%"
-          change="+$25,430.50"
-          positive={true}
+          value={`${portfolio?.total_return || "0.00"}%`}
+          change={`$${portfolio?.total_return || "0.00"}`}
+          positive={(portfolio?.total_return || 0) >= 0}
           variant="success"
           icon={<PieChart className="w-5 h-5 text-secondary" />}
         />
         <PortfolioCard
-          title="Open Positions"
-          value="12"
+          title="Cash Balance"
+          value={`$${portfolio?.cash_balance || "0.00"}`}
           positive={true}
           variant="default"
           icon={<Activity className="w-5 h-5 text-muted-foreground" />}
@@ -94,8 +163,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Left Column - Gainers/Losers */}
         <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-          <GainersLosersTable title="Top Gainers" stocks={topGainers} type="gainers" />
-          <GainersLosersTable title="Top Losers" stocks={topLosers} type="losers" />
+          <GainersLosersTable title="Top Gainers" stocks={gainers} type="gainers" />
+          <GainersLosersTable title="Top Losers" stocks={losers} type="losers" />
         </div>
 
         {/* Right Column - Allocation & Watchlist */}

@@ -1,11 +1,61 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { TrendingUp, Mail, Lock, Eye, EyeOff, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Signup() {
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch("http://localhost:8000/api/v1/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          user_name:username,
+          email,
+          password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Account created successfully! Please log in.",
+        });
+        navigate("/login");
+      } else {
+        toast({
+          title: "Error",
+          description: data.message || "Signup failed",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Network error. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -30,7 +80,7 @@ export default function Signup() {
 
         {/* Form */}
         <div className="terminal-card p-6">
-          <form className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Username</label>
               <div className="relative">
@@ -39,6 +89,9 @@ export default function Signup() {
                   type="text"
                   placeholder="trader123"
                   className="pl-9 bg-muted border-border font-mono"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
                 />
               </div>
             </div>
@@ -51,6 +104,9 @@ export default function Signup() {
                   type="email"
                   placeholder="trader@stonkslab.com"
                   className="pl-9 bg-muted border-border font-mono"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
                 />
               </div>
             </div>
@@ -63,6 +119,10 @@ export default function Signup() {
                   type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   className="pl-9 pr-10 bg-muted border-border font-mono"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
                 />
                 <button
                   type="button"
@@ -78,7 +138,7 @@ export default function Signup() {
             </div>
 
             <div className="flex items-start gap-2">
-              <input type="checkbox" className="rounded border-border bg-muted mt-0.5" />
+              <input type="checkbox" className="rounded border-border bg-muted mt-0.5" required />
               <span className="text-xs text-muted-foreground">
                 I agree to the{" "}
                 <a href="#" className="text-primary hover:text-primary/80">Terms of Service</a>
@@ -87,8 +147,8 @@ export default function Signup() {
               </span>
             </div>
 
-            <Button className="w-full bg-primary text-primary-foreground">
-              Create Account
+            <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={isLoading}>
+              {isLoading ? "Creating Account..." : "Create Account"}
             </Button>
           </form>
 
