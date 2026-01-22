@@ -9,6 +9,7 @@ type Config struct {
 	FMP       string
 	FinHub    string
 	Alpha     string
+	Twele     string
 }
 
 func LoadConfig() *Config {
@@ -17,5 +18,6 @@ func LoadConfig() *Config {
 		FMP:       os.Getenv("FMP"),
 		FinHub:    os.Getenv("FINHUB"),
 		Alpha:     os.Getenv("ALPHAVANTAGE"),
+		Twele:     os.Getenv("TWELE_DATA"),
 	}
 }
