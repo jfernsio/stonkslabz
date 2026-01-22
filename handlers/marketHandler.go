@@ -15,7 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3/client"
 )
 
-var Stocksymbols = []string{"APPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "JPM", "IBM"}
+var Stocksymbols = []string{"APPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA", "META", "JPM", "IBM", "RELIANCE.BSE", "TCS.BSE", "HDFCBANK.BSE", "INFY.BSE", "ICICIBANK.BSE", "BAJFINANCE.BSE", "KOTAKBANK.BSE", "HINDUNILVR.BSE", "SBIN.BSE", "LT.BSE", "AXISBANK.BSE", "NESTLEIND.BSE", "ASIANPAINT.BSE"}
 
 func GetCryptoData(c *fiber.Ctx) error {
 	// retrieve config from context
@@ -79,7 +79,7 @@ func GetCryptoData(c *fiber.Ctx) error {
 	}
 
 	// 3. Store in Redis (5 minutes)
-	if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 5*time.Minute).Err(); err != nil {
+	if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 4*time.Hour).Err(); err != nil {
 		log.Println("Redis set error:", err)
 	} else {
 		log.Println("Data cached in Redis")
@@ -127,7 +127,7 @@ func GetTopGainers(c *fiber.Ctx) error {
 	}
 
 	// 3. Store in Redis (5 minutes)
-	if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 5*time.Minute).Err(); err != nil {
+	if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 4*time.Hour).Err(); err != nil {
 		log.Println("Redis set error:", err)
 	} else {
 		log.Println("Data cached in Redis")
@@ -174,7 +174,7 @@ func GetTopLosers(c *fiber.Ctx) error {
 	}
 
 	// 3. Store in Redis (5 minutes)
-	if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 5*time.Minute).Err(); err != nil {
+	if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 4*time.Hour).Err(); err != nil {
 		log.Println("Redis set error:", err)
 	} else {
 		log.Println("Data cached in Redis")
@@ -310,7 +310,7 @@ func Market(c *fiber.Ctx) error {
 		log.Println("Compression error:", err)
 		// Still return data even if caching fails
 	} else {
-		if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 5*time.Minute).Err(); err != nil {
+		if err = config.Redis.Client.Set(ctx, cacheKey, compressed, 4*time.Hour).Err(); err != nil {
 			log.Println("Redis set error:", err)
 		} else {
 			log.Println("Data cached in Redis")
