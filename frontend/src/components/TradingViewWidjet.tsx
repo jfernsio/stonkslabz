@@ -24,6 +24,8 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
   const wsRef = useRef<WebSocket | null>(null);
   const candlesMap = useRef<Map<number, CandlestickData<Time>>>(new Map());
   const initialPriceRef = useRef<number | null>(null);
+  const isUnmounting = useRef(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState('Initializing...');
@@ -36,6 +38,29 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
     lastUpdate: '-',
     candleCount: 0,
   });
+
+  // Cleanup WebSocket connection
+  const cleanupWebSocket = () => {
+    if (wsRef.current) {
+      console.log(`Closing WebSocket for ${symbol}/${interval}`);
+      wsRef.current.onopen = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onclose = null;
+      
+      if (wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close();
+      }
+      
+      wsRef.current = null;
+    }
+
+    // Clear any pending reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+  };
 
   // Initialize chart
   useEffect(() => {
@@ -94,10 +119,16 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
     };
   }, []);
 
-  // Load data and connect WebSocket when symbol changes
+  // Load data and connect WebSocket when symbol or interval changes
   useEffect(() => {
+    // Cleanup previous WebSocket connection
+    cleanupWebSocket();
+    
+    // Reset states
     candlesMap.current.clear();
     initialPriceRef.current = null;
+    isUnmounting.current = false;
+    setConnected(false);
     setStats({
       currentPrice: '-',
       priceChange: 0,
@@ -162,25 +193,44 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
         }));
 
         setStatus('Connecting to live feed...');
+        
+        // Only connect WebSocket if component is still mounted
+        if (!isUnmounting.current) {
+          connectWebSocket();
+        }
       } catch (error) {
         console.error('Historical data error:', error);
         setStatus('Failed to load data');
+        
+        // Try to connect WebSocket anyway for live data
+        if (!isUnmounting.current) {
+          connectWebSocket();
+        }
       }
     };
 
     const connectWebSocket = () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      // Prevent connection if component is unmounting
+      if (isUnmounting.current) {
+        return;
       }
+
+      // Cleanup any existing connection first
+      cleanupWebSocket();
 
       const ws = new WebSocket(
         `wss://stream.binance.com:9443/ws/${symbol.toLowerCase()}usdt@kline_${interval}`
       );
 
       ws.onopen = () => {
+        if (isUnmounting.current) {
+          ws.close();
+          return;
+        }
+        
         setStatus('Live');
         setConnected(true);
-        console.log(`WebSocket connected for ${symbol}`);
+        console.log(`WebSocket connected for ${symbol}/${interval}`);
       };
 
       ws.onmessage = (event) => {
@@ -215,7 +265,8 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
           if (candle.high > high24h) high24h = candle.high;
           if (candle.low < low24h) low24h = candle.low;
 
-          setStats({
+          setStats(prev => ({
+            ...prev,
             currentPrice: currentClose.toFixed(2),
             priceChange,
             high24h: high24h.toFixed(2),
@@ -223,33 +274,52 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
             volume: parseFloat(k.v).toFixed(2),
             lastUpdate: new Date().toLocaleTimeString(),
             candleCount: candlesMap.current.size,
-          });
+          }));
         } catch (err) {
           console.error('WebSocket message error:', err);
         }
       };
 
-      ws.onerror = () => {
+      ws.onerror = (error) => {
+        if (isUnmounting.current) return;
+        
+        console.error('WebSocket error:', error);
         setStatus('Connection error');
         setConnected(false);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
+        // Don't attempt reconnect if we're unmounting or if this was a manual close
+        if (isUnmounting.current) return;
+        
         setConnected(false);
-        setStatus('Reconnecting...');
-        setTimeout(connectWebSocket, 3000);
+        
+        if (event.code !== 1000) { // 1000 is normal closure
+          setStatus('Disconnected - Reconnecting...');
+          
+          // Attempt reconnect after delay
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (!isUnmounting.current) {
+              console.log(`Attempting to reconnect WebSocket for ${symbol}/${interval}`);
+              connectWebSocket();
+            }
+          }, 3000);
+        } else {
+          setStatus('Disconnected');
+        }
       };
 
       wsRef.current = ws;
     };
 
-    loadHistoricalData().then(connectWebSocket);
+    loadHistoricalData();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
+      // Mark as unmounting to prevent reconnects
+      isUnmounting.current = true;
+      
+      // Cleanup WebSocket and any pending timeouts
+      cleanupWebSocket();
     };
   }, [symbol, interval]);
 
