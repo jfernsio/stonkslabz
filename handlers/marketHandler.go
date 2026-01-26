@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"jfernsio/stonksbackend/config"
 	"log"
+	"sort"
 	"strings"
 
 	"time"
@@ -26,6 +27,19 @@ type tweleDataResp struct {
 	Price         string `json:"close"`
 	Volume        string `json:"volume"`
 	PercentChange string `json:"percent_change"`
+}
+
+type FinhubIpoResp struct {
+	Data []Data `json:"ipoCalendar"`
+}
+type Data struct {
+	Date             string  `json:"date"`
+	Exchange         string  `json:"exchange"`
+	Name             string  `json:"name"`
+	Price            string  `json:"price"`
+	Status           string  `json:"status"`
+	Symbol           string  `json:"symbol"`
+	TotalSharesValue float64 `json:"totalSharesValue"`
 }
 
 func GetCryptoData(c *fiber.Ctx) error {
@@ -274,7 +288,20 @@ func GetStockData(c *fiber.Ctx) error {
 func GetIpoData(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	finhub := cfg.FinHub
-	url := fmt.Sprintf("https://finnhub.io/api/v1/calendar/ipo?from=2025-12-31&to=2026-01-07&token=%s", finhub)
+	cacheKey := "ipodata"
+	ctx := c.Context()
+	cached, err := config.Redis.Client.Get(ctx, cacheKey).Bytes()
+	if err == nil && len(cached) > 0 {
+		data, decErr := utils.GzipDecompress(cached)
+		if decErr == nil {
+			return c.JSON(fiber.Map{"data": json.RawMessage(data)})
+		}
+		log.Printf("decompress failed: %v", decErr)
+	}
+
+	date, _ := utils.GetDateTime()
+
+	url := fmt.Sprintf("https://finnhub.io/api/v1/calendar/ipo?from=2026-01-01&to=%s&token=%s", date, finhub)
 	fmt.Println("url ipo", url)
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
@@ -283,15 +310,58 @@ func GetIpoData(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+	var ipoData FinhubIpoResp
+	if err := json.Unmarshal(resp.Body(), &ipoData); err != nil {
+		log.Println("Error parsin", err)
+	}
 
-	return c.JSON(fiber.Map{"data": string(resp.Body())})
+	// Check if we actually got data
+	if len(ipoData.Data) == 0 {
+	}
+
+	// 3. Sort by Date (Newest to Oldest)
+	// Since format is YYYY-MM-DD, string sort works perfectly
+	sort.Slice(ipoData.Data, func(i, j int) bool {
+		return ipoData.Data[i].Date > ipoData.Data[j].Date
+	})
+	limit := 10
+
+	if len(ipoData.Data) < limit {
+		limit = len(ipoData.Data)
+	}
+	latestTx := ipoData.Data[:limit]
+
+	plainJson, err := json.Marshal(latestTx)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Serialization error"})
+	}
+
+	compressed, compErr := utils.GzipCompress(plainJson)
+	if compErr == nil {
+		_ = config.Redis.Client.Set(ctx, cacheKey, compressed, 45*time.Minute).Err()
+	}
+	return c.JSON(fiber.Map{"data": json.RawMessage(plainJson)})
 }
 
 func GetInsiderData(c *fiber.Ctx) error {
 	cfg := c.Locals("config").(*config.Config)
 	finhubApi := cfg.FinHub
-	symbol := c.Query("symbol", "TSLA") // Default to TSLA if not provided
-	url := fmt.Sprintf("https://finnhub.io/api/v1/stock/insider-transactions?symbol=%s", symbol)
+	symbol := c.Params("symbol")
+	log.Println("llooking for", symbol)
+	cacheKey := fmt.Sprintf("insiderTransactions:/%s", symbol)
+
+	ctx := c.Context()
+	cached, err := config.Redis.Client.Get(ctx, cacheKey).Bytes()
+	if err == nil && len(cached) > 0 {
+		data, decErr := utils.GzipDecompress(cached)
+		if decErr == nil {
+			return c.JSON(fiber.Map{"data": json.RawMessage(data)})
+		}
+		log.Printf("decompress failed: %v", decErr)
+	}
+
+	url := fmt.Sprintf("https://finnhub.io/api/v1/stock/insider-transactions?symbol=%s", strings.ToUpper(symbol))
+
 	cc := client.New()
 	cc.SetTimeout(10 * time.Second)
 
@@ -303,8 +373,53 @@ func GetInsiderData(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
+	var insiderinfo InsiderResponse
+	if err := json.Unmarshal(resp.Body(), &insiderinfo); err != nil {
+		fmt.Printf("Error parsing %s: %v\n", symbol, err)
+	}
 
-	return c.JSON(fiber.Map{"data": string(resp.Body())})
+	// Check if we actually got data
+	if len(insiderinfo.Data) == 0 {
+	}
+
+	// 3. Sort by Date (Newest to Oldest)
+	// Since format is YYYY-MM-DD, string sort works perfectly
+	sort.Slice(insiderinfo.Data, func(i, j int) bool {
+		return insiderinfo.Data[i].TransactionDate > insiderinfo.Data[j].TransactionDate
+	})
+	limit := 10
+
+	if len(insiderinfo.Data) < limit {
+		limit = len(insiderinfo.Data)
+	}
+	latestTx := insiderinfo.Data[:limit]
+
+	//map to struct
+	var results []ResponseToSend // Define the slice
+
+	for _, tx := range latestTx {
+		toSend := ResponseToSend{
+			Name:             tx.Name,
+			Symbol:           tx.Symbol,
+			TransactionDate:  tx.TransactionDate,
+			Share:            tx.Share,
+			TransactionPrice: tx.TransactionPrice,
+			Change:           tx.Change,
+		}
+		results = append(results, toSend)
+	}
+
+	//cahche
+	plainJson, err := json.Marshal(results)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Serialization error"})
+	}
+
+	compressed, compErr := utils.GzipCompress(plainJson)
+	if compErr == nil {
+		_ = config.Redis.Client.Set(ctx, cacheKey, compressed, 45*time.Minute).Err()
+	}
+	return c.JSON(fiber.Map{"data": json.RawMessage(plainJson)})
 }
 
 func GetInsiderSentiment(c *fiber.Ctx) error {
