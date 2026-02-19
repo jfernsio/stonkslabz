@@ -8,7 +8,7 @@ import (
 
 type Wallet struct {
 	ID           uint            `json:"id" gorm:"primaryKey"`
-	UserID       uint            `json:"user_id" gorm:"not null;index"`
+	UserID       uint            `json:"user_id" gorm:"not null;index:idx_wallets_user"`
 	Balance      decimal.Decimal `json:"balance" gorm:"not null;default:100000;type:decimal(20,8)"`
 	CreatedAt    time.Time       `json:"created_at"`
 	UpdatedAt    time.Time       `json:"updated_at"`
