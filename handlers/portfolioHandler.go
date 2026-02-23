@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"jfernsio/stonksbackend/config"
 	"jfernsio/stonksbackend/database"
 	"jfernsio/stonksbackend/models"
 	"log"
@@ -23,6 +24,8 @@ type PortfolioResponse struct {
 }
 
 func PortfolioHandler(c *fiber.Ctx) error {
+	cfg := c.Locals("config").(*config.Config)
+	fihubApi := cfg.FinHub
 	userID, ok := c.Locals("user_id").(uint)
 	if !ok {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
@@ -39,12 +42,14 @@ func PortfolioHandler(c *fiber.Ctx) error {
 	if err := database.Database.Db.Where("wallet_id = ?", wallet.ID).Find(&holdings).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch holdings"})
 	}
+	//save to redis for further use
 
 	// Fetch transactions
 	var transactions []models.Transaction
 	if err := database.Database.Db.Where("wallet_id = ?", wallet.ID).Find(&transactions).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch transactions"})
 	}
+	//save to redis
 
 	// Initialize decimals
 	cashBalance := wallet.Balance
@@ -72,7 +77,18 @@ func PortfolioHandler(c *fiber.Ctx) error {
 
 	// Calculate holdings value and unrealized P&L
 	for _, holding := range holdings {
-		currentPrice, err := MarketPrice(holding.Symbol)
+		//initalize current price var
+		var currentPrice decimal.Decimal
+		var err error
+		//first check holding type
+		//if not stock get crypto price
+		if holding.Type != models.STOCK {
+			currentPrice, err = MarketPrice(holding.Symbol)
+		} else {
+			// look for stocks
+			currentPrice, err = StockMarketPrice(holding.Symbol, fihubApi)
+
+		}
 		if err != nil {
 			log.Printf("Failed to get price for %s: %v", holding.Symbol, err)
 			// Skip this holding or use last known price? For now, skip
