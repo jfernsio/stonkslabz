@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
+	"jfernsio/stonksbackend/config"
 	"jfernsio/stonksbackend/database"
 	"jfernsio/stonksbackend/models"
 	"jfernsio/stonksbackend/utils"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/redis/go-redis/v9"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -60,7 +63,6 @@ func UserSignup(c *fiber.Ctx) error {
 	})
 }
 
-
 func UserLogin(c *fiber.Ctx) error {
 	type LoginPayload struct {
 		Email    string `json:"email"`
@@ -100,11 +102,33 @@ func UserLogin(c *fiber.Ctx) error {
 		return fiber.NewError(fiber.StatusInternalServerError, "Token generation failed")
 	}
 
+	// Initialize user in leaderboard with default balance (100000)
+	ctx := c.Context()
+	defaultBalance := "100000"
+
+	// Add user to sorted set with their balance as score
+	if err := config.Redis.Client.ZAdd(ctx, "leaderboard:all_time", redis.Z{
+		Score:  100000,
+		Member: user.ID,
+	}).Err(); err != nil {
+		log.Printf("Failed to add user to leaderboard: %v", err)
+	}
+
+	// Store username in hash for quick lookup
+	if err := config.Redis.Client.HSet(ctx, "leaderboard:usernames", fmt.Sprint(user.ID), user.UserName).Err(); err != nil {
+		log.Printf("Failed to store username in leaderboard: %v", err)
+	}
+
+	// Store balance separately for easy access
+	if err := config.Redis.Client.HSet(ctx, "leaderboard:balances", fmt.Sprint(user.ID), defaultBalance).Err(); err != nil {
+		log.Printf("Failed to store balance in leaderboard: %v", err)
+	}
+
 	c.Cookie(&fiber.Cookie{
 		Name:     "access_token",
 		Value:    token,
 		HTTPOnly: true,
-		Secure:   true,          
+		Secure:   true,
 		SameSite: fiber.CookieSameSiteStrictMode,
 		Path:     "/",
 		Expires:  time.Now().Add(72 * time.Hour),
