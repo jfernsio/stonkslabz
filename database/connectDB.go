@@ -17,7 +17,7 @@ type DbInstance struct {
 
 var Database DbInstance
 
-func ConnectToDB () {
+func ConnectToDB() {
 	err := godotenv.Load()
 
 	if err != nil {
@@ -52,9 +52,5 @@ func ConnectToDB () {
 		log.Fatalln("FAiled to run migratations", err)
 	}
 
-	Database = DbInstance{Db:db}
+	Database = DbInstance{Db: db}
 }
-
-
-
-
