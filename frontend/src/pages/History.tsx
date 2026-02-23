@@ -1,29 +1,100 @@
+
 import { useState } from "react";
 import { Calendar, Filter, Download, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useHistory } from "@/hooks/useApi";
 
-const tradeHistory = [
-  { asset: "AAPL", type: "Buy", quantity: "10", price: "$233.16", total: "$2,331.60", date: "Jan 10, 2026", pnl: "+$45.30", pnlPercent: "+1.94%", profitable: true },
-  { asset: "TSLA", type: "Sell", quantity: "5", price: "$339.62", total: "$1,698.10", date: "Jan 9, 2026", pnl: "+$123.50", pnlPercent: "+7.27%", profitable: true },
-  { asset: "BTC", type: "Buy", quantity: "0.05", price: "$67,234.50", total: "$3,361.72", date: "Jan 8, 2026", pnl: "-$42.15", pnlPercent: "-1.25%", profitable: false },
-  { asset: "NVDA", type: "Buy", quantity: "15", price: "$181.46", total: "$2,721.90", date: "Jan 7, 2026", pnl: "+$312.40", pnlPercent: "+11.48%", profitable: true },
-  { asset: "ETH", type: "Sell", quantity: "0.5", price: "$3,456.78", total: "$1,728.39", date: "Jan 6, 2026", pnl: "+$89.20", pnlPercent: "+5.16%", profitable: true },
-  { asset: "GOOGL", type: "Buy", quantity: "8", price: "$201.56", total: "$1,612.48", date: "Jan 5, 2026", pnl: "-$28.64", pnlPercent: "-1.78%", profitable: false },
-  { asset: "MSFT", type: "Sell", quantity: "4", price: "$520.42", total: "$2,081.68", date: "Jan 4, 2026", pnl: "+$156.80", pnlPercent: "+7.54%", profitable: true },
-  { asset: "AMD", type: "Buy", quantity: "20", price: "$156.78", total: "$3,135.60", date: "Jan 3, 2026", pnl: "+$234.50", pnlPercent: "+7.48%", profitable: true },
-];
+interface TradeItem {
+  asset: string;
+  type: string;
+  quantity: string;
+  price: string;
+  total: string;
+  date: string;
+  pnl: string;
+  pnlPercent: string;
+  profitable: boolean;
+}
+
+interface HistoryStats {
+  total_trades: number;
+  total_pnl: number;
+  win_rate: number;
+  total_volume: number;
+}
+
+interface Transaction {
+  id: number;
+  symbol: string;
+  type: string;
+  quantity: number;
+  price: number;
+  total_amount: number;
+  realized_pn_l: number;
+  created_at: string;
+}
+
+interface HistoryResponse {
+  page: number;
+  limit: number;
+  stats: HistoryStats;
+  transactions: Transaction[];
+}
 
 export default function History() {
   const [dateFilter, setDateFilter] = useState("");
 
-  const totalPnL = tradeHistory.reduce((acc, trade) => {
+  // TanStack Query hook for data fetching
+  const { data: historyData, isLoading } = useHistory();
+
+  // Parse history data from backend
+  // API response: { page, limit, stats, transactions }
+  const historyResponse = historyData as HistoryResponse | undefined;
+  const transactions = historyResponse?.transactions || [];
+  
+  const tradeHistory: TradeItem[] = transactions.map((item: Transaction) => ({
+    asset: item.symbol || "N/A",
+    type: item.type || "Buy",
+    quantity: item.quantity?.toString() || "0",
+    price: `$${parseFloat(String(item.price || 0)).toFixed(2)}`,
+    total: `$${parseFloat(String(item.total_amount || 0)).toFixed(2)}`,
+    date: item.created_at ? new Date(item.created_at).toLocaleDateString() : new Date().toLocaleDateString(),
+    pnl: item.realized_pn_l ? `$${Math.abs(item.realized_pn_l).toFixed(2)}` : "$0.00",
+    pnlPercent: item.realized_pn_l && item.total_amount ? `${((item.realized_pn_l / item.total_amount) * 100).toFixed(2)}%` : "0%",
+    profitable: (item.realized_pn_l || 0) >= 0,
+  }));
+
+  // Filter by date if provided
+  const filteredHistory = dateFilter 
+    ? tradeHistory.filter((trade: TradeItem) => trade.date.includes(dateFilter))
+    : tradeHistory;
+
+  const totalPnL = filteredHistory.reduce((acc: number, trade: TradeItem) => {
     const value = parseFloat(trade.pnl.replace(/[^0-9.-]/g, ""));
     return acc + value;
   }, 0);
 
-  const winRate = (tradeHistory.filter(t => t.profitable).length / tradeHistory.length * 100).toFixed(0);
+  const winCount = filteredHistory.filter((t: TradeItem) => t.profitable).length;
+  const winRate = filteredHistory.length > 0 ? ((winCount / filteredHistory.length) * 100).toFixed(0) : "0";
+
+  const totalVolume = filteredHistory.reduce((acc: number, trade: TradeItem) => {
+    return acc + parseFloat(trade.total.replace(/[^0-9.-]/g, ""));
+  }, 0);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Trade History</h1>
+            <p className="text-sm text-muted-foreground">Loading history...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -43,7 +114,7 @@ export default function History() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="terminal-card p-4">
           <div className="text-xs text-muted-foreground mb-1">Total Trades</div>
-          <div className="text-2xl font-semibold text-foreground font-mono">{tradeHistory.length}</div>
+          <div className="text-2xl font-semibold text-foreground font-mono">{historyResponse?.stats?.total_trades || filteredHistory.length}</div>
         </div>
         <div className="terminal-card p-4">
           <div className="text-xs text-muted-foreground mb-1">Total P&L</div>
@@ -56,11 +127,11 @@ export default function History() {
         </div>
         <div className="terminal-card p-4">
           <div className="text-xs text-muted-foreground mb-1">Win Rate</div>
-          <div className="text-2xl font-semibold text-success font-mono">{winRate}%</div>
+          <div className="text-2xl font-semibold text-success font-mono">{historyResponse?.stats?.win_rate?.toFixed(0) || winRate}%</div>
         </div>
         <div className="terminal-card p-4">
           <div className="text-xs text-muted-foreground mb-1">Volume</div>
-          <div className="text-2xl font-semibold text-foreground font-mono">$18,671.47</div>
+          <div className="text-2xl font-semibold text-foreground font-mono">${(historyResponse?.stats?.total_volume || totalVolume).toFixed(2)}</div>
         </div>
       </div>
 
@@ -97,7 +168,7 @@ export default function History() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {tradeHistory.map((trade, index) => (
+              {filteredHistory.map((trade: TradeItem, index: number) => (
                 <tr key={index} className="hover:bg-accent/30 transition-colors">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
@@ -161,3 +232,4 @@ export default function History() {
     </div>
   );
 }
+

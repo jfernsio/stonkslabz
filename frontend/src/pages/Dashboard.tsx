@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Wallet, TrendingUp, PieChart, Activity } from "lucide-react";
 import { PortfolioCard } from "@/components/dashboard/PortfolioCard";
@@ -8,81 +7,91 @@ import { AllocationChart } from "@/components/dashboard/AllocationChart";
 import { AIInsightCard } from "@/components/dashboard/AIInsightCard";
 import { WatchlistPreview } from "@/components/dashboard/WatchlistPreview";
 import { useToast } from "@/hooks/use-toast";
-
-const marketTickers = [
-  { symbol: "S&P 500", name: "Index", price: "$5,603.24", change: "+78.32", changePercent: "+1.4%", positive: true },
-  { symbol: "NASDAQ", name: "Index", price: "$17,890.45", change: "+312.50", changePercent: "+1.8%", positive: true },
-  { symbol: "BTC", name: "Bitcoin", price: "$67,234.50", change: "-342.10", changePercent: "-0.5%", positive: false },
-  { symbol: "ETH", name: "Ethereum", price: "$3,456.78", change: "+72.45", changePercent: "+2.1%", positive: true },
-];
+import { usePortfolio, useGainers, useLosers } from "@/hooks/useApi";
 
 export default function Dashboard() {
-  const [portfolio, setPortfolio] = useState(null);
-  const [gainers, setGainers] = useState([]);
-  const [losers, setLosers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  // TanStack Query hooks for data fetching
+  const { 
+    data: portfolioData, 
+    isLoading: portfolioLoading, 
+    error: portfolioError 
+  } = usePortfolio();
+  
+  const { 
+    data: gainersData, 
+    isLoading: gainersLoading 
+  } = useGainers();
+  
+  const { 
+    data: losersData, 
+    isLoading: losersLoading 
+  } = useLosers();
 
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  // Handle portfolio error
+  if (portfolioError) {
+    toast({
+      title: "Error",
+      description: "Failed to load portfolio data",
+      variant: "destructive",
+    });
+    navigate("/login");
+    return null;
+  }
+
+  const loading = portfolioLoading || gainersLoading || losersLoading;
+  
+  // Parse gainers data
+  interface StockItem {
+    symbol: string;
+    name?: string;
+    price: string;
+    changesPercentage?: number;
+  }
+
+  const gainers: { symbol: string; name: string; price: string; change: string; positive: boolean }[] = gainersData?.data ? (() => {
     try {
-      // Fetch portfolio
-      const portfolioRes = await fetch("http://localhost:8000/api/v1/portfolio", {
-        credentials: "include",
-      });
-      if (portfolioRes.status === 401) {
-        navigate("/login");
-        return;
-      }
-      if (portfolioRes.ok) {
-        const portfolioData = await portfolioRes.json();
-        setPortfolio(portfolioData.data);
-      } else {
-        throw new Error("Failed to fetch portfolio");
-      }
-
-      // Fetch gainers
-      const gainersRes = await fetch("http://localhost:8000/api/v1/get-gainers");
-      if (gainersRes.ok) {
-        const gainersData = await gainersRes.json();
-        const parsedGainers = JSON.parse(gainersData.data || "[]");
-        setGainers(parsedGainers.slice(0, 10).map((item: any) => ({
-          symbol: item.symbol,
-          name: item.name || item.symbol,
-          price: `$${parseFloat(item.price).toFixed(2)}`,
-          change: `${item.changesPercentage > 0 ? '+' : ''}${item.changesPercentage.toFixed(2)}%`,
-          positive: item.changesPercentage > 0,
-        })));
-      }
-
-      // Fetch losers
-      const losersRes = await fetch("http://localhost:8000/api/v1/get-losers");
-      if (losersRes.ok) {
-        const losersData = await losersRes.json();
-        const parsedLosers = JSON.parse(losersData.data || "[]");
-        setLosers(parsedLosers.slice(0, 10).map((item: any) => ({
-          symbol: item.symbol,
-          name: item.name || item.symbol,
-          price: `$${parseFloat(item.price).toFixed(2)}`,
-          change: `${item.changesPercentage.toFixed(2)}%`,
-          positive: false,
-        })));
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load dashboard data",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+      const parsed = JSON.parse(gainersData.data || "[]") as StockItem[];
+      return parsed.slice(0, 10).map((item: StockItem) => ({
+        symbol: item.symbol,
+        name: item.name || item.symbol,
+        price: `$${parseFloat(item.price).toFixed(2)}`,
+        change: `${(item.changesPercentage || 0) > 0 ? '+' : ''}${(item.changesPercentage || 0).toFixed(2)}%`,
+        positive: (item.changesPercentage || 0) > 0,
+      }));
+    } catch {
+      return [];
     }
-  };
+  })() : [];
+
+  // Parse losers data
+  const losers: { symbol: string; name: string; price: string; change: string; positive: boolean }[] = losersData?.data ? (() => {
+    try {
+      const parsed = JSON.parse(losersData.data || "[]") as StockItem[];
+      return parsed.slice(0, 10).map((item: StockItem) => ({
+        symbol: item.symbol,
+        name: item.name || item.symbol,
+        price: `$${parseFloat(item.price).toFixed(2)}`,
+        change: `${(item.changesPercentage || 0) > 0 ? '+' : ''}${(item.changesPercentage || 0).toFixed(2)}%`,
+        positive: (item.changesPercentage || 0) > 0,
+      }));
+    } catch {
+      return [];
+    }
+  })() : [];
+
+  // Portfolio data from backend
+  const portfolio = portfolioData?.data;
+
+  // Market tickers (static for now - could be connected to API if available)
+  const marketTickers = [
+    { symbol: "S&P 500", name: "Index", price: "$5,603.24", change: "+78.32", changePercent: "+1.4%", positive: true },
+    { symbol: "NASDAQ", name: "Index", price: "$17,890.45", change: "+312.50", changePercent: "+1.8%", positive: true },
+    { symbol: "BTC", name: "Bitcoin", price: "$67,234.50", change: "-342.10", changePercent: "-0.5%", positive: false },
+    { symbol: "ETH", name: "Ethereum", price: "$3,456.78", change: "+72.45", changePercent: "+2.1%", positive: true },
+  ];
 
   if (loading) {
     return (
@@ -118,7 +127,7 @@ export default function Dashboard() {
           value={`$${portfolio?.total_balance || "0.00"}`}
           change={`$${portfolio?.today_pnl || "0.00"}`}
           changePercent={`${portfolio?.percentage_change || "0.00"}%`}
-          positive={(portfolio?.percentage_change || 0) >= 0}
+          positive={(parseFloat(portfolio?.percentage_change) || 0) >= 0}
           variant="primary"
           icon={<Wallet className="w-5 h-5 text-primary" />}
         />
@@ -126,7 +135,7 @@ export default function Dashboard() {
           title="Today's P&L"
           value={`$${portfolio?.today_pnl || "0.00"}`}
           change={`${portfolio?.percentage_change || "0.00"}%`}
-          positive={(portfolio?.today_pnl || 0) >= 0}
+          positive={(parseFloat(portfolio?.today_pnl) || 0) >= 0}
           variant="success"
           icon={<TrendingUp className="w-5 h-5 text-success" />}
         />
@@ -134,7 +143,7 @@ export default function Dashboard() {
           title="Total Return"
           value={`${portfolio?.total_return || "0.00"}%`}
           change={`$${portfolio?.total_return || "0.00"}`}
-          positive={(portfolio?.total_return || 0) >= 0}
+          positive={(parseFloat(portfolio?.total_return) || 0) >= 0}
           variant="success"
           icon={<PieChart className="w-5 h-5 text-secondary" />}
         />
@@ -218,3 +227,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

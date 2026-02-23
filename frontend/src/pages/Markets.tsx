@@ -1,110 +1,84 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Search, ArrowUpRight, ArrowDownRight, TrendingUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { useStocks, useCryptos } from "@/hooks/useApi";
 
 export default function Markets() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [stocksData, setStocksData] = useState([]);
-  const [cryptoData, setCryptoData] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchMarketData();
-  }, []);
+  // TanStack Query hooks for data fetching
+  const { data: stocksData, isLoading: stocksLoading } = useStocks();
+  const { data: cryptoData, isLoading: cryptoLoading } = useCryptos();
 
-  const fetchMarketData = async () => {
-    setLoading(true);
-    try {
-      // Fetch stocks
-      const stocksRes = await fetch("http://localhost:8000/api/v1/get-stocks");
-      if (stocksRes.ok) {
-        const stocksResponse = await stocksRes.json();
-        const stocksMap = JSON.parse(stocksResponse.stock_market_data || "{}");
-        
-        const parsedStocks = Object.entries(stocksMap).map(([symbol, data]: [string, any]) => {
-          const quote = JSON.parse(data)["Global Quote"];
-          if (!quote) return null;
-          
-          const price = parseFloat(quote["05. price"]);
-          const previousClose = parseFloat(quote["08. previous close"]);
-          const change = price - previousClose;
-          const changePercent = (change / previousClose) * 100;
-          
-          return {
-            symbol,
-            name: symbol, // Alpha Vantage doesn't provide names in this endpoint
-            open: `$${parseFloat(quote["02. open"]).toFixed(2)}`,
-            high: `$${parseFloat(quote["03. high"]).toFixed(2)}`,
-            low: `$${parseFloat(quote["04. low"]).toFixed(2)}`,
-            price: `$${price.toFixed(2)}`,
-            volume: quote["06. volume"],
-            change: `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%`,
-            positive: changePercent > 0,
-          };
-        }).filter(Boolean);
-        
-        setStocksData(parsedStocks);
-      }
+  // Parse stocks data
+  const parsedStocks = stocksData?.data ? (() => {
+    const stocksDataArr = stocksData.data as any[];
+    return stocksDataArr.map((stock: any) => {
+      const price = parseFloat(stock.close);
+      const open = parseFloat(stock.open);
+      const changePercent = open !== 0 ? ((price - open) / open) * 100 : 0;
+      
+      return {
+        symbol: stock.symbol,
+        name: stock.name || stock.symbol,
+        open: `$${open.toFixed(2)}`,
+        high: `$${parseFloat(stock.high).toFixed(2)}`,
+        low: `$${parseFloat(stock.low).toFixed(2)}`,
+        price: `$${price.toFixed(2)}`,
+        volume: stock.volume || "0",
+        change: `${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%`,
+        positive: changePercent > 0,
+      };
+    });
+  })() : [];
 
-      // Fetch crypto
-      const cryptoRes = await fetch("http://localhost:8000/api/v1/get-cryptos");
-      if (cryptoRes.ok) {
-        const cryptoResponse = await cryptoRes.json();
-        const cryptoMap = JSON.parse(cryptoResponse.crypto_market_data || "{}");
-        
-        const cryptoMappings: { [key: string]: { symbol: string; name: string } } = {
-          bitcoin: { symbol: "BTC", name: "Bitcoin" },
-          ethereum: { symbol: "ETH", name: "Ethereum" },
-          solana: { symbol: "SOL", name: "Solana" },
-          tether: { symbol: "USDT", name: "Tether" },
-          binancecoin: { symbol: "BNB", name: "BNB" },
-          ripple: { symbol: "XRP", name: "Ripple" },
-          tron: { symbol: "TRX", name: "Tron" },
-          dogecoin: { symbol: "DOGE", name: "Dogecoin" },
-          cardano: { symbol: "ADA", name: "Cardano" },
-          polkadot: { symbol: "DOT", name: "Polkadot" },
-          uniswap: { symbol: "UNI", name: "Uniswap" },
-          litecoin: { symbol: "LTC", name: "Litecoin" },
-        };
-        
-        const parsedCrypto = Object.entries(cryptoMap).map(([id, data]: [string, any]) => {
-          const mapping = cryptoMappings[id] || { symbol: id.toUpperCase().slice(0, 3), name: id.charAt(0).toUpperCase() + id.slice(1) };
-          return {
-            symbol: mapping.symbol,
-            name: mapping.name,
-            price: `$${data.usd.toFixed(2)}`,
-            marketCap: `$${(data.usd_market_cap / 1e9).toFixed(1)}B`,
-            volume: `$${(data.usd_24h_vol / 1e9).toFixed(1)}B`,
-            change: `${data.usd_24h_change > 0 ? '+' : ''}${data.usd_24h_change.toFixed(2)}%`,
-            positive: data.usd_24h_change > 0,
-          };
-        });
-        
-        setCryptoData(parsedCrypto);
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load market data",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Parse crypto data
+  const parsedCrypto = cryptoData?.crypto_market_data ? (() => {
+    const cryptoMap = JSON.parse(cryptoData.crypto_market_data || "{}");
+    
+    const cryptoMappings: { [key: string]: { symbol: string; name: string } } = {
+      bitcoin: { symbol: "BTC", name: "Bitcoin" },
+      ethereum: { symbol: "ETH", name: "Ethereum" },
+      solana: { symbol: "SOL", name: "Solana" },
+      tether: { symbol: "USDT", name: "Tether" },
+      binancecoin: { symbol: "BNB", name: "BNB" },
+      ripple: { symbol: "XRP", name: "Ripple" },
+      tron: { symbol: "TRX", name: "Tron" },
+      dogecoin: { symbol: "DOGE", name: "Dogecoin" },
+      cardano: { symbol: "ADA", name: "Cardano" },
+      polkadot: { symbol: "DOT", name: "Polkadot" },
+      uniswap: { symbol: "UNI", name: "Uniswap" },
+      litecoin: { symbol: "LTC", name: "Litecoin" },
+    };
+    
+    return Object.entries(cryptoMap).map(([id, data]: [string, any]) => {
+      const mapping = cryptoMappings[id] || { symbol: id.toUpperCase().slice(0, 3), name: id.charAt(0).toUpperCase() + id.slice(1) };
+      return {
+        symbol: mapping.symbol,
+        name: mapping.name,
+        price: `$${data.usd.toFixed(2)}`,
+        marketCap: `$${(data.usd_market_cap / 1e9).toFixed(1)}B`,
+        volume: `$${(data.usd_24h_vol / 1e9).toFixed(1)}B`,
+        change: `${data.usd_24h_change > 0 ? '+' : ''}${data.usd_24h_change.toFixed(2)}%`,
+        positive: data.usd_24h_change > 0,
+      };
+    });
+  })() : [];
 
-  const filteredStocks = stocksData.filter(stock => 
+  const loading = stocksLoading || cryptoLoading;
+
+  const filteredStocks = parsedStocks.filter((stock: any) => 
     stock.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
     stock.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredCrypto = cryptoData.filter(crypto => 
+  const filteredCrypto = parsedCrypto.filter((crypto: any) => 
     crypto.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
     crypto.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -171,7 +145,7 @@ export default function Markets() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {filteredStocks.map((stock) => (
+                  {filteredStocks.map((stock: any) => (
                     <tr
                       key={stock.symbol}
                       className="hover:bg-accent/30 transition-colors cursor-pointer"
@@ -215,7 +189,7 @@ export default function Markets() {
         {/* Crypto Cards */}
         <TabsContent value="crypto" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredCrypto.map((crypto) => (
+            {filteredCrypto.map((crypto: any) => (
               <div
                 key={crypto.symbol}
                 className="terminal-card p-4 hover:border-primary/50 transition-colors cursor-pointer relative overflow-hidden"
@@ -281,3 +255,4 @@ export default function Markets() {
     </div>
   );
 }
+

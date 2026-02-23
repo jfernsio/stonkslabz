@@ -4,28 +4,99 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell } from "recharts";
+import { useInsiderTransactions, useInsiderSentiment } from "@/hooks/useApi";
 
-const sentimentData = [
-  { month: "Jul", buy: 45, sell: 23 },
-  { month: "Aug", buy: 38, sell: 42 },
-  { month: "Sep", buy: 52, sell: 18 },
-  { month: "Oct", buy: 31, sell: 35 },
-  { month: "Nov", buy: 48, sell: 22 },
-  { month: "Dec", buy: 55, sell: 15 },
-  { month: "Jan", buy: 42, sell: 28 },
-];
+interface InsiderTransaction {
+  name: string;
+  company: string;
+  role: string;
+  type: string;
+  shares: string;
+  shareChange: string;
+  price: string;
+  date: string;
+}
 
-const transactionsData = [
-  { name: "Jensen Huang", company: "NVDA", role: "CEO", type: "Sell", shares: "100,000", shareChange: "-0.5%", price: "$180.50", date: "Jan 8, 2026" },
-  { name: "Tim Cook", company: "AAPL", role: "CEO", type: "Sell", shares: "50,000", shareChange: "-0.2%", price: "$232.10", date: "Jan 7, 2026" },
-  { name: "Satya Nadella", company: "MSFT", role: "CEO", type: "Buy", shares: "25,000", shareChange: "+0.1%", price: "$518.30", date: "Jan 6, 2026" },
-  { name: "Mark Zuckerberg", company: "META", role: "CEO", type: "Sell", shares: "200,000", shareChange: "-0.8%", price: "$765.20", date: "Jan 5, 2026" },
-  { name: "Sundar Pichai", company: "GOOGL", role: "CEO", type: "Buy", shares: "15,000", shareChange: "+0.05%", price: "$199.80", date: "Jan 4, 2026" },
-  { name: "Andy Jassy", company: "AMZN", role: "CEO", type: "Sell", shares: "30,000", shareChange: "-0.3%", price: "$245.60", date: "Jan 3, 2026" },
-];
+interface SentimentData {
+  month: string;
+  buy: number;
+  sell: number;
+}
 
 export default function InsiderActivity() {
   const [searchQuery, setSearchQuery] = useState("");
+
+  // TanStack Query hooks for data fetching
+  const { data: transactionsData, isLoading: transactionsLoading } = useInsiderTransactions();
+  const { data: sentimentData, isLoading: sentimentLoading } = useInsiderSentiment();
+
+  // Parse insider transactions
+  const parsedTransactions: InsiderTransaction[] = transactionsData?.data ? (() => {
+    try {
+      const parsed = JSON.parse(transactionsData.data || "[]");
+      return parsed.map((item: any) => ({
+        name: item.insider || item.name || "Unknown",
+        company: item.symbol || item.company || "N/A",
+        role: item.role || "N/A",
+        type: item.type || item.transaction_type || "Buy",
+        shares: item.shares?.toLocaleString() || "0",
+        shareChange: item.shareChange || `${item.change || 0}%`,
+        price: `$${item.price || 0}`,
+        date: item.date || new Date().toLocaleDateString(),
+      }));
+    } catch {
+      return [];
+    }
+  })() : [];
+
+  // Parse sentiment data
+  const parsedSentiment: SentimentData[] = sentimentData?.data ? (() => {
+    try {
+      const parsed = JSON.parse(sentimentData.data || "{}");
+      // Convert the object to array format for the chart
+      return Object.entries(parsed).map(([month, data]: [string, any]) => ({
+        month: month.slice(0, 3),
+        buy: data.buy || 0,
+        sell: data.sell || 0,
+      }));
+    } catch {
+      return [];
+    }
+  })() : [
+    { month: "Jul", buy: 45, sell: 23 },
+    { month: "Aug", buy: 38, sell: 42 },
+    { month: "Sep", buy: 52, sell: 18 },
+    { month: "Oct", buy: 31, sell: 35 },
+    { month: "Nov", buy: 48, sell: 22 },
+    { month: "Dec", buy: 55, sell: 15 },
+    { month: "Jan", buy: 42, sell: 28 },
+  ];
+
+  // Calculate stats
+  const buyCount = parsedTransactions.filter((t: InsiderTransaction) => t.type === "Buy").length;
+  const sellCount = parsedTransactions.filter((t: InsiderTransaction) => t.type === "Sell").length;
+  const buySellRatio = sellCount > 0 ? (buyCount / sellCount).toFixed(2) : "0.00";
+
+  // Filter transactions by search query
+  const filteredTransactions = parsedTransactions.filter((tx: InsiderTransaction) =>
+    tx.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    tx.name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const loading = transactionsLoading || sentimentLoading;
+
+  if (loading) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">Insider Activity</h1>
+            <p className="text-sm text-muted-foreground">Loading insider data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -69,7 +140,7 @@ export default function InsiderActivity() {
                   <TrendingUp className="w-5 h-5 text-success" />
                 </div>
                 <div>
-                  <div className="text-2xl font-semibold text-foreground font-mono">156</div>
+                  <div className="text-2xl font-semibold text-foreground font-mono">{buyCount}</div>
                   <div className="text-xs text-muted-foreground">Buy Transactions</div>
                 </div>
               </div>
@@ -80,7 +151,7 @@ export default function InsiderActivity() {
                   <TrendingDown className="w-5 h-5 text-destructive" />
                 </div>
                 <div>
-                  <div className="text-2xl font-semibold text-foreground font-mono">89</div>
+                  <div className="text-2xl font-semibold text-foreground font-mono">{sellCount}</div>
                   <div className="text-xs text-muted-foreground">Sell Transactions</div>
                 </div>
               </div>
@@ -91,7 +162,7 @@ export default function InsiderActivity() {
                   <Users className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <div className="text-2xl font-semibold text-foreground font-mono">1.64x</div>
+                  <div className="text-2xl font-semibold text-foreground font-mono">{buySellRatio}x</div>
                   <div className="text-xs text-muted-foreground">Buy/Sell Ratio</div>
                 </div>
               </div>
@@ -117,7 +188,7 @@ export default function InsiderActivity() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {transactionsData.map((tx, index) => (
+                  {filteredTransactions.map((tx: InsiderTransaction, index: number) => (
                     <tr key={index} className="hover:bg-accent/30 transition-colors cursor-pointer">
                       <td className="px-4 py-3">
                         <div className="text-sm font-medium text-foreground">{tx.name}</div>
@@ -165,7 +236,7 @@ export default function InsiderActivity() {
             <h3 className="font-semibold text-sm text-foreground mb-4">Insider Sentiment by Month</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={sentimentData} barGap={4}>
+                <BarChart data={parsedSentiment} barGap={4}>
                   <XAxis
                     dataKey="month"
                     axisLine={false}
@@ -206,15 +277,15 @@ export default function InsiderActivity() {
             <h3 className="font-semibold text-sm text-foreground mb-3">Market-Wide Insider Sentiment</h3>
             <div className="flex items-center gap-4">
               <div className="flex-1 h-4 bg-muted rounded-sm overflow-hidden">
-                <div className="h-full bg-success" style={{ width: "64%" }} />
+                <div className="h-full bg-success" style={{ width: `${(buyCount / (buyCount + sellCount || 1)) * 100}%` }} />
               </div>
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-success font-mono">64%</span>
+                <span className="text-success font-mono">{((buyCount / (buyCount + sellCount || 1)) * 100).toFixed(0)}%</span>
                 <span className="text-muted-foreground">Bullish</span>
               </div>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Based on 245 insider transactions in the last 30 days
+              Based on {buyCount + sellCount} insider transactions in the last 30 days
             </p>
           </div>
         </TabsContent>
@@ -222,3 +293,4 @@ export default function InsiderActivity() {
     </div>
   );
 }
+

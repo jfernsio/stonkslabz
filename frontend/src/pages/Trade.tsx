@@ -7,7 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import CryptoChart from "@/components/TradingViewWidjet";
-
+import StockChart from "@/components/TradingViewStock"
+import { useBuyCrypto, useBuyStock, useSellStock, useSellCrypto } from "@/hooks/useApi";
 const timeframes = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 const insiderTransactions = [
@@ -39,8 +40,14 @@ export default function Trade() {
   const [quantity, setQuantity] = useState("");
   const [limitPrice, setLimitPrice] = useState("");
   const { toast } = useToast();
+  
+  const buyStockMutation = useBuyStock();
+  const buyCryptoMutation = useBuyCrypto();
+  
+  const sellStockMutation = useSellStock();
+  const sellCryptoMutation = useSellCrypto();
 
-  const handleBuy = () => {
+  const handleBuy = async () => {
     if (!quantity || parseFloat(quantity) <= 0) {
       toast({
         title: "Invalid Quantity",
@@ -49,15 +56,36 @@ export default function Trade() {
       });
       return;
     }
+    try {
+       if (type !== "crypto") {
+      await buyStockMutation.mutateAsync({
+        symbol,
+        quantity: parseFloat(quantity),
+      });
+    } else {
+      await buyCryptoMutation.mutateAsync({
+        symbol,
+        quantity: parseFloat(quantity),
+      });
+    }
 
     toast({
       title: "Order Placed",
-      description: `Buy order for ${quantity} ${symbol} submitted (Paper Trading)`,
+      description: `Buy order for ${quantity} ${symbol} succesfull`,
+      variant: "default",
     });
+
     setQuantity("");
+    } catch (error){
+      toast({
+      title: "Order Failed",
+      description: "Something went wrong while placing the order.",
+      variant: "destructive",
+    });
+    }
   };
 
-  const handleSell = () => {
+  const handleSell = async () => {
     if (!quantity || parseFloat(quantity) <= 0) {
       toast({
         title: "Invalid Quantity",
@@ -66,12 +94,33 @@ export default function Trade() {
       });
       return;
     }
+    try {
+       if (type !== "crypto") {
+      await sellStockMutation.mutateAsync({
+        symbol,
+        quantity: parseFloat(quantity),
+      });
+    } else {
+      await sellCryptoMutation.mutateAsync({
+        symbol,
+        quantity: parseFloat(quantity),
+      });
+    }
 
     toast({
       title: "Order Placed",
-      description: `Sell order for ${quantity} ${symbol} submitted (Paper Trading)`,
+      description: `Sell order for ${quantity} ${symbol} succesfull`,
+      variant: "default",
     });
+
     setQuantity("");
+    } catch (error){
+      toast({
+      title: "Order Failed",
+      description: "Something went wrong while placing the order.",
+      variant: "destructive",
+    });
+    }
   };
 
   return (
@@ -133,17 +182,8 @@ export default function Trade() {
           {/* Chart */}
           {isCrypto ? (
             <CryptoChart symbol={symbol} interval={selectedTimeframe} />
-          ) : (
-            <div className="terminal-card p-4">
-              <div className="h-[400px] flex items-center justify-center bg-muted/20 rounded-sm">
-                <div className="text-center">
-                  <Info className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-muted-foreground">Stock charts coming soon</p>
-                  <p className="text-xs text-muted-foreground mt-1">Connect your backend for stock data</p>
-                </div>
-              </div>
-            </div>
-          )}
+          ) : <StockChart symbol={symbol} interval={selectedTimeframe} />
+          }
 
           {/* Insider Transactions for Stocks */}
           {!isCrypto && (

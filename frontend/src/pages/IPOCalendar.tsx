@@ -1,16 +1,74 @@
 import { Calendar, ArrowUpRight, Clock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useIPO } from "@/hooks/useApi";
 
-const ipoData = [
-  { date: "Jan 15, 2026", company: "TechVentures AI", symbol: "TVAI", exchange: "NASDAQ", priceRange: "$18 - $22", shares: "15M", status: "Expected" },
-  { date: "Jan 18, 2026", company: "GreenEnergy Corp", symbol: "GECO", exchange: "NYSE", priceRange: "$24 - $28", shares: "20M", status: "Filed" },
-  { date: "Jan 22, 2026", company: "CloudScale Inc", symbol: "CSCA", exchange: "NASDAQ", priceRange: "$32 - $36", shares: "12M", status: "Expected" },
-  { date: "Jan 25, 2026", company: "BioMed Solutions", symbol: "BMED", exchange: "NYSE", priceRange: "$15 - $18", shares: "25M", status: "Filed" },
-  { date: "Feb 1, 2026", company: "QuantumTech Labs", symbol: "QTCH", exchange: "NASDAQ", priceRange: "$45 - $52", shares: "10M", status: "Expected" },
-  { date: "Feb 5, 2026", company: "FinFlow Digital", symbol: "FFIN", exchange: "NYSE", priceRange: "$22 - $26", shares: "18M", status: "Filed" },
-];
+interface IPOItem {
+  date: string;
+  company: string;
+  symbol: string;
+  exchange: string;
+  priceRange: string;
+  shares: string;
+  status: string;
+}
+
+// Backend IPO response format:
+// { data: [{ date, exchange, name, price, status, symbol, totalSharesValue }] }
+interface IPOData {
+  date: string;
+  exchange: string;
+  name: string;
+  price: string;
+  status: string;
+  symbol: string;
+  totalSharesValue: number;
+}
 
 export default function IPOCalendar() {
+  const { data: ipoData, isLoading } = useIPO();
+
+  // Parse IPO data from backend - directly use the data array
+  const parsedIPO: IPOItem[] = ipoData?.data ? (() => {
+    try {
+      const data = ipoData.data as IPOData[];
+      if (Array.isArray(data)) {
+        return data.map((item: IPOData) => ({
+          date: item.date || "",
+          company: item.name || "Unknown Company",
+          symbol: item.symbol || "N/A",
+          exchange: item.exchange || "NASDAQ",
+          priceRange: item.price || "$0 - $0",
+          shares: item.totalSharesValue ? `${(item.totalSharesValue / 1000000).toFixed(0)}M` : "0",
+          status: item.status || "Expected",
+        }));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  })() : [];
+
+  // Calculate stats
+  const thisMonth = parsedIPO.length;
+  const expectedRaised = parsedIPO.reduce((acc: number, ipo: IPOItem) => {
+    const shares = parseFloat(ipo.shares.replace(/[^0-9.]/g, "0")) * 1000000;
+    return acc + shares;
+  }, 0);
+  const nasdaqListings = parsedIPO.filter((ipo: IPOItem) => ipo.exchange === "NASDAQ").length;
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold text-foreground">IPO Calendar</h1>
+            <p className="text-sm text-muted-foreground">Loading IPO data...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 animate-fade-in">
       {/* Header */}
@@ -33,7 +91,7 @@ export default function IPOCalendar() {
               <Calendar className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <div className="text-2xl font-semibold text-foreground font-mono">12</div>
+              <div className="text-2xl font-semibold text-foreground font-mono">{thisMonth}</div>
               <div className="text-xs text-muted-foreground">This Month</div>
             </div>
           </div>
@@ -44,7 +102,7 @@ export default function IPOCalendar() {
               <ArrowUpRight className="w-5 h-5 text-success" />
             </div>
             <div>
-              <div className="text-2xl font-semibold text-foreground font-mono">$2.4B</div>
+              <div className="text-2xl font-semibold text-foreground font-mono">${(expectedRaised / 1e9).toFixed(1)}B</div>
               <div className="text-xs text-muted-foreground">Expected Raised</div>
             </div>
           </div>
@@ -55,7 +113,7 @@ export default function IPOCalendar() {
               <Building2 className="w-5 h-5 text-secondary" />
             </div>
             <div>
-              <div className="text-2xl font-semibold text-foreground font-mono">6</div>
+              <div className="text-2xl font-semibold text-foreground font-mono">{nasdaqListings}</div>
               <div className="text-xs text-muted-foreground">NASDAQ Listings</div>
             </div>
           </div>
@@ -91,7 +149,7 @@ export default function IPOCalendar() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {ipoData.map((ipo, index) => (
+              {parsedIPO.length > 0 ? parsedIPO.map((ipo: IPOItem, index: number) => (
                 <tr
                   key={index}
                   className="hover:bg-accent/30 transition-colors cursor-pointer"
@@ -111,13 +169,13 @@ export default function IPOCalendar() {
                   <td className="px-4 py-3">
                     <span className="text-sm text-muted-foreground">{ipo.exchange}</span>
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-sm text-foreground">{ipo.priceRange}</td>
+                  <td className="px-4 py-3 text-right font-mono text-sm text-foreground">${ipo.priceRange}</td>
                   <td className="px-4 py-3 text-right font-mono text-sm text-muted-foreground">{ipo.shares}</td>
                   <td className="px-4 py-3 text-center">
                     <span
                       className={cn(
                         "text-xs px-2 py-1 rounded-sm font-medium",
-                        ipo.status === "Expected"
+                        ipo.status === "upcoming" || ipo.status === "Expected"
                           ? "bg-success/10 text-success"
                           : "bg-warning/10 text-warning"
                       )}
@@ -126,7 +184,13 @@ export default function IPOCalendar() {
                     </span>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    No upcoming IPOs found
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -134,3 +198,4 @@ export default function IPOCalendar() {
     </div>
   );
 }
+
