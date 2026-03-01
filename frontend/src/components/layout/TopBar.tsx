@@ -8,6 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useLogout } from "@/hooks/useApi";
 
 const marketTickers = [
   { symbol: "S&P 500", value: "5,603.24", change: "+1.4%", positive: true },
@@ -17,6 +18,12 @@ const marketTickers = [
 ];
 
 export function TopBar() {
+const { logout, isPending } = useLogout();
+
+  const handleLogout = () => {
+    if (isPending) return; // Prevent extra clicks
+    logout();
+  };
   return (
     <header className="h-14 bg-card border-b border-border flex items-center justify-between gap-4 px-4">
       {/* Ticker Tape */}
@@ -76,7 +83,12 @@ export function TopBar() {
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">Logout</DropdownMenuItem>
+            <DropdownMenuItem 
+            className={`text-destructive ${isPending ? "opacity-50 cursor-not-allowed" : ""}`} 
+      onClick={handleLogout}
+      disabled={isPending}
+            >
+              {isPending ? "Logging out..." : "Logout"}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
