@@ -5,6 +5,7 @@ import { createChart, IChartApi, CandlestickData, ColorType, CrosshairMode, Time
 interface CryptoChartProps {
   symbol: string;
   interval?: string;
+  onPriceUpdate?: (price: number) => void;
 }
 
 interface ChartStats {
@@ -17,7 +18,7 @@ interface ChartStats {
   candleCount: number;
 }
 
-export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProps) {
+export default function CryptoChart({ symbol, interval = '1m', onPriceUpdate }: CryptoChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
@@ -183,7 +184,6 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
 
         const lastCandle = candles[candles.length - 1];
         initialPriceRef.current = lastCandle.close;
-        
         setStats(prev => ({
           ...prev,
           currentPrice: lastCandle.close.toFixed(2),
@@ -191,6 +191,9 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
           low24h: low24h.toFixed(2),
           candleCount: candles.length,
         }));
+        if (onPriceUpdate && lastCandle && typeof lastCandle.close === 'number') {
+          onPriceUpdate(lastCandle.close);
+        }
 
         setStatus('Connecting to live feed...');
         
@@ -275,6 +278,8 @@ export default function CryptoChart({ symbol, interval = '1m' }: CryptoChartProp
             lastUpdate: new Date().toLocaleTimeString(),
             candleCount: candlesMap.current.size,
           }));
+          if (onPriceUpdate) onPriceUpdate(currentClose);
+
         } catch (err) {
           console.error('WebSocket message error:', err);
         }
