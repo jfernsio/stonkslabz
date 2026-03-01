@@ -3,9 +3,10 @@ import { useState } from "react";
 import { Star, Plus, ArrowUpRight, ArrowDownRight, Bell, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useWatchlist, useAddToWatchlist } from "@/hooks/useApi";
+import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from "@/hooks/useApi";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
+import { FavoriteButton } from "@/components/ui/FavoriteButton";
 
 interface WatchlistItem {
   symbol: string;
@@ -26,6 +27,23 @@ export default function Watchlist() {
   // TanStack Query hooks for data fetching
   const { data: watchlistData, isLoading, error } = useWatchlist();
   const addToWatchlist = useAddToWatchlist();
+  const removeFromWatchlist = useRemoveFromWatchlist();
+
+  const handleRemove = async (symbol: string) => {
+    try {
+      await removeFromWatchlist.mutateAsync(symbol);
+      toast({
+        title: "Removed",
+        description: `${symbol} removed from watchlist`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : "Failed to remove from watchlist",
+        variant: "destructive",
+      });
+    }
+  };
 
   // Parse watchlist data from backend
   // API returns array directly: [{symbol, price, percent_change}, ...]
@@ -155,7 +173,15 @@ export default function Watchlist() {
                           item.positive ? "bg-success/10" : "bg-destructive/10"
                         )}
                       >
-                        <Star className={cn("w-4 h-4", item.positive ? "text-success" : "text-destructive")} />
+                        {/* clicking the star removes from watchlist since this page only lists favorites */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleRemove(item.symbol)}
+                        >
+                          <Star className={cn("w-4 h-4", item.positive ? "text-success" : "text-destructive")} />
+                        </Button>
                       </div>
                       <div>
                         <div className="font-mono text-sm font-medium text-foreground">{item.symbol}</div>
@@ -189,7 +215,12 @@ export default function Watchlist() {
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => navigate(`/trade?symbol=${item.symbol}&type=stock`)}>
                         Trade
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => handleRemove(item.symbol)}
+                      >
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
@@ -222,7 +253,14 @@ export default function Watchlist() {
                         item.positive ? "bg-success/10" : "bg-destructive/10"
                       )}
                     >
-                      <Star className={cn("w-5 h-5", item.positive ? "text-success" : "text-destructive")} />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10"
+                        onClick={() => handleRemove(item.symbol)}
+                      >
+                        <Star className={cn("w-5 h-5", item.positive ? "text-success" : "text-destructive")} />
+                      </Button>
                     </div>
                     <div>
                       <div className="font-mono text-sm font-medium text-foreground">{item.symbol}</div>
