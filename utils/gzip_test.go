@@ -1,8 +1,15 @@
 package utils
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestGzipCompress(t *testing.T) {
+	fmt.Println("Starting unit tests for gzip.go")
+
+	fmt.Println("Testing GzipCompress function")
+
 	data := []byte("This is a test string to be compressed usging gzip")
 
 	compressed, err := GzipCompress(data)
@@ -17,6 +24,8 @@ func TestGzipCompress(t *testing.T) {
 }
 
 func TestGzipDecompress(t *testing.T) {
+	fmt.Println("Testing GzipDecompress function")
+
 	data := []byte("This is a test string to be decompresed using gzip")
 
 	compresed, err := GzipCompress(data)
