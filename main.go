@@ -4,6 +4,7 @@ import (
 	"jfernsio/stonksbackend/config"
 	"jfernsio/stonksbackend/database"
 	"jfernsio/stonksbackend/handlers"
+	"jfernsio/stonksbackend/middlewares"
 	"log"
 
 	"github.com/gofiber/fiber/v2"
@@ -21,9 +22,13 @@ func main() {
 	app := fiber.New(fiber.Config{
 		AppName: "StonksLab",
 	})
-
+	config.InitRedis()
 	database.ConnectToDB()
-	app.Use(cors.New())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "http://localhost:3000",
+		AllowHeaders:     "Origin, Content-Type, Accept",
+		AllowCredentials: true,
+	}))
 	//middleare to add conf in evr req context
 	app.Use(func(c *fiber.Ctx) error {
 		c.Locals("config", cfg) // Store config in locals (accessible in all handlers)
@@ -34,20 +39,42 @@ func main() {
 	v1 := api.Group("/v1")
 	v1.Post("/signin", handlers.UserLogin)
 	v1.Post("/signup", handlers.UserSignup)
-	v1.Get("/logout", handlers.UserLogout)
 
+	//protected routes grp
+	protected := v1.Group("", middlewares.AuthMiddleware) // Apply auth middleware to all routes in this group
+
+	protected.Get("/logout", handlers.UserLogout)
 	//market routes
-	v1.Get("/get-stocks", handlers.GetMarketData)
-	v1.Get("/get-cryptos", handlers.GetStockData)
-	v1.Get("/get-losers", handlers.GetTopLosers)
-	v1.Get("/get-gainers", handlers.GetTopGainers)
-	v1.Get("/get-ipo", handlers.GetIpoData)
-	v1.Get("/get-insider-sentiment", handlers.GetInsiderSentiment)
-	v1.Get("/get-insider-data", handlers.GetInsiderData)
+	protected.Get("insider-data", handlers.RecentTransactions)
+	protected.Get("insider-data/:symbol", handlers.GetInsiderData)
+	protected.Get("ipo", handlers.GetIpoData)
+	protected.Get("stocks", handlers.GetStockData)
+	protected.Get("cryptos", handlers.GetCryptoData)
+	protected.Get("losers", handlers.GetTopLosers)
+	protected.Get("gainers", handlers.GetTopGainers)
+
+	protected.Post("/buy-stock/:symbol/:quantity", handlers.BuyStockHandler)
+	protected.Post("/sell-stock/:symbol/:quantity", handlers.SellStocksHandler)
+
+	protected.Post("/buy-crypto/:symbol/:quantity", handlers.BuyHandler)
+	protected.Post("/sell-crypto/:symbol/:quantity", handlers.SellHandler)
+
+	protected.Get("/insider-sentiment", handlers.GetInsiderSentiment)
 
 	//trade routes to get ticker candles
-	v1.Get("/get-ticker/:symbol", handlers.GetTickerData)
+	v1.Get("/ticker/:symbol", handlers.GetHistoryGeneric(handlers.TwelveDataProvider{}, "history12"))
 
+	//protfoluo routes
+	protected.Get("/portfolio", handlers.PortfolioHandler)
+
+	//leaderboard routes
+	protected.Get("/leaderboard", handlers.GetLeaderboard)
+	protected.Get("/leaderboard/rank", handlers.GetUserRank)
+
+	protected.Get("/history", handlers.GetHistory)
+	protected.Get("/watchlist", handlers.GetWatchList)
+	protected.Post("/watchlist", handlers.AddWatchList)
+	protected.Delete("/watchlist/:symbol", handlers.DeletWatchList)
 	log.Fatal(app.Listen(":8000"))
 
 }
