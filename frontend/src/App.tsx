@@ -17,6 +17,7 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
+import Leaderboard from "./pages/Leaderboard";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/markets" element={<Markets />} />
             <Route path="/trade" element={<Trade />} />
+            <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/ipo" element={<IPOCalendar />} />
             <Route path="/insider" element={<InsiderActivity />} />
