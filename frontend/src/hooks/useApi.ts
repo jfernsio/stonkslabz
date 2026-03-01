@@ -1,5 +1,5 @@
-
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
 const API_BASE = "http://localhost:8000/api/v1";
 
@@ -9,6 +9,7 @@ async function fetchApi(
   options?: {
     method?: string;
     body?: string;
+    credentials?: RequestCredentials;
   }
 ) {
   const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -53,7 +54,7 @@ export const usePortfolio = () => {
 export const useStocks = () => {
   return useQuery({
     queryKey: ["stocks"],
-    queryFn: () => fetchApi("/get-stocks"),
+    queryFn: () => fetchApi("/stocks"),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -62,7 +63,7 @@ export const useStocks = () => {
 export const useCryptos = () => {
   return useQuery({
     queryKey: ["cryptos"],
-    queryFn: () => fetchApi("/get-cryptos"),
+    queryFn: () => fetchApi("/cryptos"),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -71,7 +72,7 @@ export const useCryptos = () => {
 export const useGainers = () => {
   return useQuery({
     queryKey: ["gainers"],
-    queryFn: () => fetchApi("/get-gainers"),
+    queryFn: () => fetchApi("/gainers"),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -80,7 +81,7 @@ export const useGainers = () => {
 export const useLosers = () => {
   return useQuery({
     queryKey: ["losers"],
-    queryFn: () => fetchApi("/get-losers"),
+    queryFn: () => fetchApi("/losers"),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -90,7 +91,7 @@ export const useLosers = () => {
 export const useIPO = () => {
   return useQuery({
     queryKey: ["ipo"],
-    queryFn: () => fetchApi("/get-ipo"),
+    queryFn: () => fetchApi("/ipo"),
     staleTime: 60 * 60 * 1000, // 1 hour for IPO data
     retry: 1,
   });
@@ -100,7 +101,7 @@ export const useIPO = () => {
 export const useInsiderTransactions = () => {
   return useQuery({
     queryKey: ["insider-transactions"],
-    queryFn: () => fetchApi("/get-insider-data"),
+    queryFn: () => fetchApi("/insider-data"),
     staleTime: 30 * 60 * 1000, // 30 minutes
     retry: 1,
   });
@@ -109,7 +110,7 @@ export const useInsiderTransactions = () => {
 export const useInsiderSentiment = () => {
   return useQuery({
     queryKey: ["insider-sentiment"],
-    queryFn: () => fetchApi("/get-insider-sentiment"),
+    queryFn: () => fetchApi("/insider-sentiment"),
     staleTime: 60 * 60 * 1000, // 1 hour
     retry: 1,
   });
@@ -143,6 +144,21 @@ export const useAddToWatchlist = () => {
       fetchApi("/watchlist", {
         method: "POST",
         body: JSON.stringify({ symbol }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["watchlist"] });
+    },
+  });
+};
+
+// remove hook (DELETE)
+export const useRemoveFromWatchlist = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (symbol: string) =>
+      fetchApi(`/watchlist/${symbol}`, {
+        method: "DELETE",
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["watchlist"] });
@@ -236,10 +252,31 @@ export const useSellCrypto = () => {
 export const useTickerHistory = (symbol: string) => {
   return useQuery({
     queryKey: ["ticker", symbol],
-    queryFn: () => fetchApi(`/get-ticker/${symbol}`),
+    queryFn: () => fetchApi(`/ticker/${symbol}`),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
     enabled: !!symbol,
   });
 };
 
+export const useLogout = () => {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: () => fetchApi("/logout", {credentials: "include" }),
+    onSuccess: () => {
+      queryClient.clear();
+      window.location.href = "/login";
+    },
+    onError: (error) => {
+      toast({
+        title: "Logout failed",
+        description: error instanceof Error ? error.message : "An error occurred",
+        variant: "destructive",
+      });
+    }
+  });
+
+  return { logout: mutate, isPending };
+};
