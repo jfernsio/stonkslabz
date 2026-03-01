@@ -12,6 +12,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Award,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,7 @@ const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/" },
   { icon: TrendingUp, label: "Markets", path: "/markets" },
   { icon: ArrowLeftRight, label: "Trade", path: "/trade" },
+  { icon: Award, label: "Leaderboard", path: "/leaderboard"},
   { icon: Star, label: "Watchlist", path: "/watchlist" },
   { icon: Calendar, label: "IPO Calendar", path: "/ipo" },
   { icon: Users, label: "Insider Activity", path: "/insider" },
