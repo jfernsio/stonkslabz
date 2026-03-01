@@ -170,6 +170,23 @@ func BuyStockHandler(c *fiber.Ctx) error {
 		return c.SendStatus(500)
 	}
 
+	// Update leaderboard with new portfolio value
+	// Calculate total holdings value
+	var holdings []models.Holding
+	if err := database.Database.Db.Where("wallet_id = ?", wallet.ID).Find(&holdings).Error; err == nil {
+		totalHoldingsValue := decimal.Zero
+		for _, h := range holdings {
+			currentPrice, priceErr := StockMarketPrice(h.Symbol, fihubApi)
+			if priceErr == nil {
+				holdingsValue := h.Quantity.Mul(currentPrice)
+				totalHoldingsValue = totalHoldingsValue.Add(holdingsValue)
+			}
+		}
+		// Total portfolio value = cash balance + holdings value
+		totalValue := wallet.Balance.Add(totalHoldingsValue).InexactFloat64()
+		go UpdateUserBalance(userID, totalValue)
+	}
+
 	return c.JSON(fiber.Map{
 		"status":    "success",
 		"balance":   wallet.Balance.StringFixed(8), // Convert back for display
@@ -281,6 +298,23 @@ func SellStocksHandler(c *fiber.Ctx) error {
 	}
 	if err := tx.Commit().Error; err != nil {
 		return c.SendStatus(500)
+	}
+
+	// Update leaderboard with new portfolio value
+	// Calculate total holdings value
+	var holdings []models.Holding
+	if err := database.Database.Db.Where("wallet_id = ?", wallet.ID).Find(&holdings).Error; err == nil {
+		totalHoldingsValue := decimal.Zero
+		for _, h := range holdings {
+			currentPrice, priceErr := StockMarketPrice(h.Symbol, fihubApi)
+			if priceErr == nil {
+				holdingsValue := h.Quantity.Mul(currentPrice)
+				totalHoldingsValue = totalHoldingsValue.Add(holdingsValue)
+			}
+		}
+		// Total portfolio value = cash balance + holdings value
+		totalValue := wallet.Balance.Add(totalHoldingsValue).InexactFloat64()
+		go UpdateUserBalance(userID, totalValue)
 	}
 
 	return c.JSON(fiber.Map{

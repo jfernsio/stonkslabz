@@ -167,6 +167,8 @@ func BuyHandler(c *fiber.Ctx) error {
 		return c.SendStatus(500)
 	}
 
+	go UpdateUserBalance(userID, balance.InexactFloat64())
+
 	return c.JSON(fiber.Map{
 		"status":    "success",
 		"balance":   wallet.Balance.StringFixed(8), // Convert back for display
@@ -277,7 +279,7 @@ func SellHandler(c *fiber.Ctx) error {
 	if err := tx.Commit().Error; err != nil {
 		return c.SendStatus(500)
 	}
-
+	go UpdateUserBalance(userID, wallet.Balance.InexactFloat64())
 	return c.JSON(fiber.Map{
 		"status":             "success",
 		"new_balance":        wallet.Balance.StringFixed(8), // Convert back for display
