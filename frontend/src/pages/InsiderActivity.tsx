@@ -33,18 +33,30 @@ export default function InsiderActivity() {
   // Parse insider transactions
   const parsedTransactions: InsiderTransaction[] = transactionsData?.data ? (() => {
     try {
-      const parsed = JSON.parse(transactionsData.data || "[]");
-      return parsed.map((item: any) => ({
-        name: item.insider || item.name || "Unknown",
-        company: item.symbol || item.company || "N/A",
+      let data = transactionsData.data;
+      
+      // If data is a string, parse it
+      if (typeof data === 'string') {
+        data = JSON.parse(data);
+      }
+      
+      // Ensure it's an array
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      return data.map((item: any) => ({
+        name: item.name || "Unknown",
+        company: item.symbol || "N/A",
         role: item.role || "N/A",
-        type: item.type || item.transaction_type || "Buy",
-        shares: item.shares?.toLocaleString() || "0",
-        shareChange: item.shareChange || `${item.change || 0}%`,
-        price: `$${item.price || 0}`,
-        date: item.date || new Date().toLocaleDateString(),
+        type: item.change > 0 ? "Buy" : "Sell",
+        shares: (item.share || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }),
+        shareChange: `${item.change > 0 ? '+' : ''}${(item.change || 0).toFixed(2)}%`,
+        price: `$${(item.transactionPrice || 0).toFixed(2)}`,
+        date: item.transactionDate || new Date().toLocaleDateString(),
       }));
-    } catch {
+    } catch (error) {
+      console.error('Error parsing transactions:', error);
       return [];
     }
   })() : [];
@@ -52,15 +64,43 @@ export default function InsiderActivity() {
   // Parse sentiment data
   const parsedSentiment: SentimentData[] = sentimentData?.data ? (() => {
     try {
-      const parsed = JSON.parse(sentimentData.data || "{}");
-      // Convert the object to array format for the chart
-      return Object.entries(parsed).map(([month, data]: [string, any]) => ({
-        month: month.slice(0, 3),
-        buy: data.buy || 0,
-        sell: data.sell || 0,
-      }));
-    } catch {
+      let data = sentimentData.data;
+      
+      // If data is a string, parse it
+      if (typeof data === 'string') {
+        data = JSON.parse(data);
+      }
+      
+      // Handle array of sentiment objects
+      if (Array.isArray(data)) {
+        return data.map((item: any) => ({
+          month: new Date(item.month || new Date()).toLocaleString('en-US', { month: 'short' }),
+          buy: item.buy || item.mspr || 0,
+          sell: item.sell || 0,
+        }));
+      }
+      
+      // Handle object format {month: {buy, sell}}
+      if (typeof data === 'object') {
+        return Object.entries(data).map(([month, sentiment]: [string, any]) => ({
+          month: new Date(month).toLocaleString('en-US', { month: 'short' }),
+          buy: sentiment?.buy || sentiment?.mspr || 0,
+          sell: sentiment?.sell || 0,
+        }));
+      }
+
       return [];
+    } catch (error) {
+      console.error('Error parsing sentiment:', error);
+      return [
+        { month: "Jul", buy: 45, sell: 23 },
+        { month: "Aug", buy: 38, sell: 42 },
+        { month: "Sep", buy: 52, sell: 18 },
+        { month: "Oct", buy: 31, sell: 35 },
+        { month: "Nov", buy: 48, sell: 22 },
+        { month: "Dec", buy: 55, sell: 15 },
+        { month: "Jan", buy: 42, sell: 28 },
+      ];
     }
   })() : [
     { month: "Jul", buy: 45, sell: 23 },
@@ -188,42 +228,51 @@ export default function InsiderActivity() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {filteredTransactions.map((tx: InsiderTransaction, index: number) => (
-                    <tr key={index} className="hover:bg-accent/30 transition-colors cursor-pointer">
-                      <td className="px-4 py-3">
-                        <div className="text-sm font-medium text-foreground">{tx.name}</div>
-                        <div className="text-xs text-muted-foreground">{tx.role}</div>
+                  {filteredTransactions.length > 0 ? (
+                    filteredTransactions.map((tx: InsiderTransaction, index: number) => (
+                      <tr key={index} className="hover:bg-accent/30 transition-colors cursor-pointer">
+                        <td className="px-4 py-3">
+                          <div className="text-sm font-medium text-foreground">{tx.name}</div>
+                          <div className="text-xs text-muted-foreground">{tx.role}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-mono text-sm text-primary">{tx.company}</span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={cn(
+                              "text-xs px-2 py-1 rounded-sm font-mono",
+                              tx.type === "Buy"
+                                ? "bg-success/10 text-success"
+                                : "bg-destructive/10 text-destructive"
+                            )}
+                          >
+                            {tx.type}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-sm text-foreground">{tx.shares}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span
+                            className={cn(
+                              "font-mono text-sm",
+                              tx.shareChange.startsWith("+") ? "text-success" : "text-destructive"
+                            )}
+                          >
+                            {tx.shareChange}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right font-mono text-sm text-foreground">{tx.price}</td>
+                        <td className="px-4 py-3 text-right text-sm text-muted-foreground">{tx.date}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center">
+                        <Users className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-50" />
+                        <p className="text-sm text-muted-foreground">No insider transactions found</p>
                       </td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-sm text-primary">{tx.company}</span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={cn(
-                            "text-xs px-2 py-1 rounded-sm font-mono",
-                            tx.type === "Buy"
-                              ? "bg-success/10 text-success"
-                              : "bg-destructive/10 text-destructive"
-                          )}
-                        >
-                          {tx.type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-sm text-foreground">{tx.shares}</td>
-                      <td className="px-4 py-3 text-right">
-                        <span
-                          className={cn(
-                            "font-mono text-sm",
-                            tx.shareChange.startsWith("+") ? "text-success" : "text-destructive"
-                          )}
-                        >
-                          {tx.shareChange}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-mono text-sm text-foreground">{tx.price}</td>
-                      <td className="px-4 py-3 text-right text-sm text-muted-foreground">{tx.date}</td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
             </div>

@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Star, TrendingUp, TrendingDown, Info, Clock } from "lucide-react";
+import { TrendingUp, TrendingDown, Info, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FavoriteButton } from "@/components/ui/FavoriteButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -41,87 +42,112 @@ export default function Trade() {
   const [limitPrice, setLimitPrice] = useState("");
   const { toast } = useToast();
   
+  // live price state
+  const [currentPrice, setCurrentPrice] = useState<number>(0);
+  const pollingRef = useRef<number | null>(null);
+
+  // reset current price when symbol/type changes
+  useEffect(() => {
+    setCurrentPrice(0);
+  }, [symbol, isCrypto]);
+
   const buyStockMutation = useBuyStock();
   const buyCryptoMutation = useBuyCrypto();
   
   const sellStockMutation = useSellStock();
   const sellCryptoMutation = useSellCrypto();
 
-  const handleBuy = async () => {
+  // prevent double submissions (simple debounce/throttle)
+  const inFlightRef = useRef(false);
+  const withDebounce = useCallback((fn: () => Promise<void>, delay = 800) => {
+    return async () => {
+      if (inFlightRef.current) return;
+      inFlightRef.current = true;
+      try {
+        await fn();
+      } finally {
+        setTimeout(() => { inFlightRef.current = false; }, delay);
+      }
+    };
+  }, []);
+
+  // fetch latest price for estimated cost for non-crypto symbols
+  useEffect(() => {
+    if (isCrypto) return; // crypto uses websocket price
+    let mounted = true;
+    const fetchPrice = async () => {
+      try {
+        const res = await fetch(`http://localhost:8000/api/v1/ticker/${symbol.toUpperCase()}`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        // attempt to extract last close price from response
+        let price = 0;
+        if (Array.isArray(data) && data.length > 0) {
+          const last = data[data.length - 1];
+          if (Array.isArray(last) && last.length >= 5) price = parseFloat(String(last[4]));
+          else if (last && typeof last === 'object') price = parseFloat(String(last.close ?? last.c ?? last.price ?? 0));
+        } else if (data && typeof data === 'object') {
+          const cand = (data.data && Array.isArray(data.data) && data.data[data.data.length - 1]) ||
+                       (data.candles && data.candles[data.candles.length - 1]) ||
+                       (data.klines && data.klines[data.klines.length - 1]) ||
+                       null;
+          if (cand) {
+            if (Array.isArray(cand) && cand.length >= 5) price = parseFloat(String(cand[4]));
+            else price = parseFloat(String(cand.close ?? cand.c ?? cand.price ?? 0));
+          } else if (typeof data.currentPrice === 'number' || typeof data.price === 'number') {
+            price = parseFloat(String(data.currentPrice ?? data.price));
+          }
+        }
+        if (mounted && !Number.isNaN(price) && price > 0) setCurrentPrice(price);
+      } catch (e) { /* ignore */ }
+    };
+
+    // initial fetch and polling every 15s
+    fetchPrice();
+    pollingRef.current = window.setInterval(fetchPrice, 15000);
+    return () => { mounted = false; if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [symbol, isCrypto]);
+
+  // create debounced handlers
+  const debouncedBuy = withDebounce(async () => {
     if (!quantity || parseFloat(quantity) <= 0) {
-      toast({
-        title: "Invalid Quantity",
-        description: "Please enter a valid quantity",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid Quantity", description: "Please enter a valid quantity", variant: "destructive" });
       return;
     }
     try {
-       if (type !== "crypto") {
-      await buyStockMutation.mutateAsync({
-        symbol,
-        quantity: parseFloat(quantity),
-      });
-    } else {
-      await buyCryptoMutation.mutateAsync({
-        symbol,
-        quantity: parseFloat(quantity),
-      });
+      if (type !== "crypto") {
+        await buyStockMutation.mutateAsync({ symbol, quantity: parseFloat(quantity) });
+      } else {
+        await buyCryptoMutation.mutateAsync({ symbol, quantity: parseFloat(quantity) });
+      }
+
+      toast({ title: "Order Placed", description: `Buy order for ${quantity} ${symbol} successful`, variant: "default" });
+      setQuantity("");
+    } catch (error) {
+      toast({ title: "Order Failed", description: "Something went wrong while placing the order.", variant: "destructive" });
     }
+  });
 
-    toast({
-      title: "Order Placed",
-      description: `Buy order for ${quantity} ${symbol} succesfull`,
-      variant: "default",
-    });
-
-    setQuantity("");
-    } catch (error){
-      toast({
-      title: "Order Failed",
-      description: "Something went wrong while placing the order.",
-      variant: "destructive",
-    });
-    }
-  };
-
-  const handleSell = async () => {
+  const debouncedSell = withDebounce(async () => {
     if (!quantity || parseFloat(quantity) <= 0) {
-      toast({
-        title: "Invalid Quantity",
-        description: "Please enter a valid quantity",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid Quantity", description: "Please enter a valid quantity", variant: "destructive" });
       return;
     }
     try {
-       if (type !== "crypto") {
-      await sellStockMutation.mutateAsync({
-        symbol,
-        quantity: parseFloat(quantity),
-      });
-    } else {
-      await sellCryptoMutation.mutateAsync({
-        symbol,
-        quantity: parseFloat(quantity),
-      });
-    }
+      if (type !== "crypto") {
+        await sellStockMutation.mutateAsync({ symbol, quantity: parseFloat(quantity) });
+      } else {
+        await sellCryptoMutation.mutateAsync({ symbol, quantity: parseFloat(quantity) });
+      }
 
-    toast({
-      title: "Order Placed",
-      description: `Sell order for ${quantity} ${symbol} succesfull`,
-      variant: "default",
-    });
-
-    setQuantity("");
-    } catch (error){
-      toast({
-      title: "Order Failed",
-      description: "Something went wrong while placing the order.",
-      variant: "destructive",
-    });
+      toast({ title: "Order Placed", description: `Sell order for ${quantity} ${symbol} successful`, variant: "default" });
+      setQuantity("");
+    } catch (error) {
+      toast({ title: "Order Failed", description: "Something went wrong while placing the order.", variant: "destructive" });
     }
-  };
+  });
+
+
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -146,9 +172,7 @@ export default function Trade() {
                 <span className="text-sm text-muted-foreground">
                   • {isCrypto ? `${symbol}/USDT` : "Stock"}
                 </span>
-                <Button variant="ghost" size="icon" className="h-6 w-6">
-                  <Star className="w-4 h-4 text-muted-foreground hover:text-warning" />
-                </Button>
+                <FavoriteButton symbol={symbol} />
               </div>
               <p className="text-xs text-muted-foreground mt-1">
                 {isCrypto ? "Cryptocurrency" : "Equity"} • Live Data
@@ -181,7 +205,11 @@ export default function Trade() {
         <div className="lg:col-span-2 space-y-4">
           {/* Chart */}
           {isCrypto ? (
-            <CryptoChart symbol={symbol} interval={selectedTimeframe} />
+            <CryptoChart
+              symbol={symbol}
+              interval={selectedTimeframe}
+              onPriceUpdate={(p) => setCurrentPrice(p)}
+            />
           ) : <StockChart symbol={symbol} interval={selectedTimeframe} />
           }
 
@@ -301,7 +329,11 @@ export default function Trade() {
                   <div className="flex justify-between text-xs">
                     <span className="text-muted-foreground">Estimated Cost</span>
                     <span className="font-mono text-foreground">
-                      ${quantity ? (parseFloat(quantity) * 100).toFixed(2) : "0.00"}
+                      ${(() => {
+                        const qty = quantity ? parseFloat(quantity) : 0;
+                        const price = orderType === 'limit' && limitPrice ? parseFloat(limitPrice) : currentPrice || 0;
+                        return (qty * price).toFixed(2);
+                      })()}
                     </span>
                   </div>
                 </div>
@@ -309,7 +341,7 @@ export default function Trade() {
                 <TabsContent value="buy" className="mt-0">
                   <Button 
                     className="w-full bg-success hover:bg-success/90 text-success-foreground"
-                    onClick={handleBuy}
+                    onClick={() => debouncedBuy()}
                   >
                     Buy {symbol}
                   </Button>
@@ -317,7 +349,7 @@ export default function Trade() {
                 <TabsContent value="sell" className="mt-0">
                   <Button 
                     className="w-full bg-destructive hover:bg-destructive/90"
-                    onClick={handleSell}
+                    onClick={() => debouncedSell()}
                   >
                     Sell {symbol}
                   </Button>
