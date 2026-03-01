@@ -7,7 +7,6 @@ import (
 	"jfernsio/stonksbackend/database"
 	"jfernsio/stonksbackend/models"
 	"jfernsio/stonksbackend/utils"
-	"log"
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
@@ -128,9 +127,22 @@ func AddWatchList(c *fiber.Ctx) error {
 
 func DeletWatchList(c *fiber.Ctx) error {
 	userID, ok := c.Locals("user_id").(uint)
-	log.Println(userID)
 	if !ok {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	return nil
+
+	symbol := strings.ToUpper(strings.TrimSpace(c.Params("symbol")))
+	if symbol == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Symbol required"})
+	}
+
+	err := database.Database.Db.
+		Where("user_id = ? AND symbol = ?", userID, symbol).
+		Delete(&models.Watchlist{}).Error
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).
+			JSON(fiber.Map{"error": "Failed to remove from watchlist"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Removed from watchlist", "symbol": symbol})
 }
