@@ -18,12 +18,14 @@ type DbInstance struct {
 var Database DbInstance
 
 func ConnectToDB() {
-	err := godotenv.Load()
+	if _, exists := os.LookupEnv("RAILWAY_ENVIRONMENT_NAME"); !exists {
 
-	if err != nil {
-		log.Fatal("Error loading .env file")
+		err := godotenv.Load()
+
+		if err != nil {
+			log.Fatal("Error loading .env file")
+		}
 	}
-
 	connStr := os.Getenv("DATABASE_URL")
 	db, err := gorm.Open(postgres.Open(connStr), &gorm.Config{})
 

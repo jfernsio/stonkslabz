@@ -6,6 +6,7 @@ import (
 	"jfernsio/stonksbackend/handlers"
 	"jfernsio/stonksbackend/middlewares"
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -13,9 +14,11 @@ import (
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Error loading .env file")
+	if _, exists := os.LookupEnv("RAILWAY_ENVIRONMENT_NAME"); !exists {
+		err := godotenv.Load()
+		if err != nil {
+			log.Println("Error loading .env file")
+		}
 	}
 	cfg := config.LoadConfig() //load config once
 
