@@ -28,7 +28,7 @@ func main() {
 	config.InitRedis()
 	database.ConnectToDB()
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "http://localhost:3000,https://stonkslabz-production.up.railway.app",
+		AllowOrigins:     "http://localhost:3000,https://stonksfrontend.vercel.app/,https://stonkslabz.joelfrens.site/",
 		AllowHeaders:     "Origin, Content-Type, Accept",
 		AllowCredentials: true,
 	}))
