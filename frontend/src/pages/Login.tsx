@@ -4,6 +4,7 @@ import { TrendingUp, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { API_BASE } from "@/hooks/useApi";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +19,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/v1/signin", {
+      const response = await fetch(`${API_BASE}/signin`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

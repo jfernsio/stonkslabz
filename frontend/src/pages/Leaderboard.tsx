@@ -3,6 +3,7 @@ import { Trophy, Users, TrendingUp, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { API_BASE } from "@/hooks/useApi";
 
 interface LeaderboardEntry {
   user_id: number;
@@ -25,7 +26,7 @@ export default function Leaderboard() {
         setIsLoading(true);
       }
 
-      const response = await fetch("http://localhost:8000/api/v1/leaderboard", {
+      const response = await fetch(`${API_BASE}/leaderboard`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

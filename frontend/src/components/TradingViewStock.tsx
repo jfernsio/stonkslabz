@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, TrendingUp, TrendingDown, Clock, BarChart3, Wifi, WifiOff, RefreshCw, AlertCircle } from 'lucide-react'; // Added AlertCircle
 import { createChart, IChartApi, CandlestickData, ColorType, CrosshairMode, Time, CandlestickSeries } from 'lightweight-charts';
+import { API_BASE } from '@/hooks/useApi';
 
 interface StpckChartProps {
   symbol: string;
@@ -129,7 +130,7 @@ export default function StockChart({ symbol, interval = '1m' }: StpckChartProps)
       
       candlesMap.current.clear();
       
-      const endpoint = `http://localhost:8000/api/v1/get-ticker/${symbol.toUpperCase()}`;
+      const endpoint = `${API_BASE}/ticker/${symbol.toUpperCase()}`;
       let data = null;
       let success = false;
 

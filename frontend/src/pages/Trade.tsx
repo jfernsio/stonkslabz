@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import CryptoChart from "@/components/TradingViewWidjet";
 import StockChart from "@/components/TradingViewStock"
-import { useBuyCrypto, useBuyStock, useSellStock, useSellCrypto } from "@/hooks/useApi";
+import { useBuyCrypto, useBuyStock, useSellStock, useSellCrypto, API_BASE } from "@/hooks/useApi";
 const timeframes = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 const insiderTransactions = [
@@ -77,7 +77,7 @@ export default function Trade() {
     let mounted = true;
     const fetchPrice = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/v1/ticker/${symbol.toUpperCase()}`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE}/ticker/${symbol.toUpperCase()}`, { credentials: 'include' });
         if (!res.ok) return;
         const data = await res.json();
         // attempt to extract last close price from response

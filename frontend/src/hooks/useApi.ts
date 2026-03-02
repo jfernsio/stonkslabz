@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 
-const API_BASE = "http://localhost:8000/api/v1";
+export const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 // Generic fetch function with credentials
 async function fetchApi(
