@@ -129,7 +129,7 @@ func UserLogin(c *fiber.Ctx) error {
 		Value:    token,
 		HTTPOnly: true,
 		Secure:   true,
-		SameSite: fiber.CookieSameSiteDisabled,
+		SameSite: fiber.CookieSameSiteNoneMode,
 		Path:     "/",
 		Expires:  time.Now().Add(72 * time.Hour),
 	})
