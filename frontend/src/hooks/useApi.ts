@@ -45,7 +45,7 @@ const defaultQueryOptions = {
 export const usePortfolio = () => {
   return useQuery({
     queryKey: ["portfolio"],
-    queryFn: () => fetchApi("/portfolio"),
+    queryFn: () => fetchApi("/portfolio", {credentials: "include" }),
     ...defaultQueryOptions,
   });
 };
@@ -54,7 +54,7 @@ export const usePortfolio = () => {
 export const useStocks = () => {
   return useQuery({
     queryKey: ["stocks"],
-    queryFn: () => fetchApi("/stocks"),
+    queryFn: () => fetchApi("/stocks", {credentials: "include" }),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -63,7 +63,7 @@ export const useStocks = () => {
 export const useCryptos = () => {
   return useQuery({
     queryKey: ["cryptos"],
-    queryFn: () => fetchApi("/cryptos"),
+    queryFn: () => fetchApi("/cryptos", {credentials: "include" }),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -72,7 +72,7 @@ export const useCryptos = () => {
 export const useGainers = () => {
   return useQuery({
     queryKey: ["gainers"],
-    queryFn: () => fetchApi("/gainers"),
+    queryFn: () => fetchApi("/gainers", {credentials: "include" }),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -81,7 +81,7 @@ export const useGainers = () => {
 export const useLosers = () => {
   return useQuery({
     queryKey: ["losers"],
-    queryFn: () => fetchApi("/losers"),
+    queryFn: () => fetchApi("/losers", {credentials: "include" }),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
@@ -91,7 +91,7 @@ export const useLosers = () => {
 export const useIPO = () => {
   return useQuery({
     queryKey: ["ipo"],
-    queryFn: () => fetchApi("/ipo"),
+    queryFn: () => fetchApi("/ipo", {credentials: "include" }),
     staleTime: 60 * 60 * 1000, // 1 hour for IPO data
     retry: 1,
   });
@@ -101,7 +101,7 @@ export const useIPO = () => {
 export const useInsiderTransactions = () => {
   return useQuery({
     queryKey: ["insider-transactions"],
-    queryFn: () => fetchApi("/insider-data"),
+    queryFn: () => fetchApi("/insider-data", {credentials: "include" }),
     staleTime: 30 * 60 * 1000, // 30 minutes
     retry: 1,
   });
@@ -110,7 +110,7 @@ export const useInsiderTransactions = () => {
 export const useInsiderSentiment = () => {
   return useQuery({
     queryKey: ["insider-sentiment"],
-    queryFn: () => fetchApi("/insider-sentiment"),
+    queryFn: () => fetchApi("/insider-sentiment", {credentials: "include" }),
     staleTime: 60 * 60 * 1000, // 1 hour
     retry: 1,
   });
@@ -120,7 +120,7 @@ export const useInsiderSentiment = () => {
 export const useHistory = () => {
   return useQuery({
     queryKey: ["history"],
-    queryFn: () => fetchApi("/history"),
+    queryFn: () => fetchApi("/history", {credentials: "include" }),
     staleTime: 60 * 1000, // 1 minute
     retry: 1,
   });
@@ -130,7 +130,7 @@ export const useHistory = () => {
 export const useWatchlist = () => {
   return useQuery({
     queryKey: ["watchlist"],
-    queryFn: () => fetchApi("/watchlist"),
+    queryFn: () => fetchApi("/watchlist", {credentials: "include" }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
   });
@@ -143,6 +143,7 @@ export const useAddToWatchlist = () => {
     mutationFn: (symbol: string) => 
       fetchApi("/watchlist", {
         method: "POST",
+        credentials: "include" ,
         body: JSON.stringify({ symbol }),
       }),
     onSuccess: () => {
@@ -159,6 +160,7 @@ export const useRemoveFromWatchlist = () => {
     mutationFn: (symbol: string) =>
       fetchApi(`/watchlist/${symbol}`, {
         method: "DELETE",
+        credentials: "include" 
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["watchlist"] });
@@ -170,7 +172,7 @@ export const useRemoveFromWatchlist = () => {
 export const useLeaderboard = () => {
   return useQuery({
     queryKey: ["leaderboard"],
-    queryFn: () => fetchApi("/leaderboard"),
+    queryFn: () => fetchApi("/leaderboard", {credentials: "include" }),
     staleTime: 60 * 1000, // 1 minute
     retry: 1,
   });
@@ -180,7 +182,7 @@ export const useLeaderboard = () => {
 export const useUserRank = () => {
   return useQuery({
     queryKey: ["user-rank"],
-    queryFn: () => fetchApi("/leaderboard/rank"),
+    queryFn: () => fetchApi("/leaderboard/rank", {credentials: "include" }),
     staleTime: 60 * 1000, // 1 minute
     retry: 1,
   });
@@ -194,6 +196,7 @@ export const useBuyStock = () => {
     mutationFn: ({ symbol, quantity }: { symbol: string; quantity: number }) => 
       fetchApi(`/buy-stock/${symbol}/${quantity}`, {
         method: "POST",
+        credentials: "include" 
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
@@ -209,6 +212,7 @@ export const useSellStock = () => {
     mutationFn: ({ symbol, quantity }: { symbol: string; quantity: number }) => 
       fetchApi(`/sell-stock/${symbol}/${quantity}`, {
         method: "POST",
+        credentials: "include" 
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
@@ -225,6 +229,7 @@ export const useBuyCrypto = () => {
     mutationFn: ({ symbol, quantity }: { symbol: string; quantity: number }) => 
       fetchApi(`/buy-crypto/${symbol}/${quantity}`, {
         method: "POST",
+        credentials: "include" 
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
@@ -240,6 +245,7 @@ export const useSellCrypto = () => {
     mutationFn: ({ symbol, quantity }: { symbol: string; quantity: number }) => 
       fetchApi(`/sell-crypto/${symbol}/${quantity}`, {
         method: "POST",
+        credentials: "include" 
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["portfolio"] });
@@ -252,7 +258,7 @@ export const useSellCrypto = () => {
 export const useTickerHistory = (symbol: string) => {
   return useQuery({
     queryKey: ["ticker", symbol],
-    queryFn: () => fetchApi(`/ticker/${symbol}`),
+    queryFn: () => fetchApi(`/ticker/${symbol}`, {credentials: "include" }),
     staleTime: 5 * 60 * 1000, // 5 minutes
     retry: 1,
     enabled: !!symbol,
