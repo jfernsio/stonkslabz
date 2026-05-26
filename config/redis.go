@@ -15,7 +15,7 @@ var Redis RedisInstance
 
 func InitRedis() {
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     "redis-15165.crce281.ap-south-1-3.ec2.cloud.redislabs.com",
+		Addr:     "redis-15165.crce281.ap-south-1-3.ec2.cloud.redislabs.com:15165",
 		Username: "default",
 		Password: "83XPTPeAYBAobwLxfB6x0Z7vqzQqQXdB",
 		DB:       0,
